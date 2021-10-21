@@ -1,4 +1,4 @@
 
-# Haikus for Codespaces
+# LSM-Tree 
 
-This is a quick node project template for demoing Codespaces. It is based off of the [Azure node sample](https://github.com/Azure-Samples/nodejs-docs-hello-world). It's great!!!
+LSM Tree is a write optimization system that converts random write to sequential write, thus achieving excellent write performance. However, certain LSM will also lead to write amplification. This project tries to partially solve or reduce this problem.
