@@ -10,7 +10,10 @@
 using namespace std;
 
 
+class skiplist;
+
 class node {
+    friend class skiplist;
     int height;
     node **forwards;
 public:

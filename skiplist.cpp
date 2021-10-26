@@ -32,15 +32,15 @@ node *skiplist::insert(const string &k, const string &v){
     } else { //insert
         ++length;
 
-        const int level = level();
-        for(int i=this->height; i<level; ++i) {
+        const int H = this->level();
+        for(int i=this->height; i<H; ++i) {
             updates[i] = this->head;
         }
 
-        this->height = level>this->height ? level : this->height;
+        this->height = H>this->height ? H : this->height;
         
-        node * neo = new node(level, k, v);
-        for(int i=0; i<level; ++i){
+        node * neo = new node(H, k, v);
+        for(int i=0; i<H; ++i){
             neo->forwards[i] = updates[i]->forwards[i];
             updates[i]->forwards[i] = neo;
         }

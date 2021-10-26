@@ -1,8 +1,11 @@
 #ifndef __BPTREE_H__
 #define __BPTREE_H__
 
-#include "memtable.h"
 #include <vector>
+#include <atomic>
+#include "memtable.h"
+#include "sstable.h"
+#include "tamper.h"
 
 typedef std::pair<std::string, std::string> kvpair;
 
@@ -13,16 +16,18 @@ class lsmtree{
     memtable *immutab;
     std::vector<std::vector<sstable*> > levels;
     std::atomic<std::uint64_t> verbase;
+    tamper *tamp;
 
     int subside();
 public:
-    bptree():
+    lsmtree():
         immutab(nullptr),
         verbase(0){
         mutab = new memtable;
+        tamp = new tamper(std::bind(&lsmtree::subside, this));
     }
 
-    ~bptree(){
+    ~lsmtree(){
         if(immutab){
             delete immutab;
         }

@@ -6,23 +6,31 @@
 #include <unistd.h>
 #include <memory>
 #include <thread>
+#include <functional>
 
 
 class tamper{
-    lsmtree *lsm;
+    std::function<int(void)> callee;
     sem_t immu_done;
     sem_t immu_come;
     bool running;
+    std::thread * daemon;
 public:
-    tamper(lsmtree *tree):
-        lsm(tree),
+    tamper(std::function<int(void)> f):
+        callee(f),
         running(true){
-        sem_init(/*sem_t *sem*/&busy, /*int pshared*/0, /*unsigned int value*/0);
+        sem_init(/*sem_t *sem*/&immu_done, /*int pshared*/0, /*unsigned int value*/1);
+        sem_init(/*sem_t *sem*/&immu_come, /*int pshared*/0, /*unsigned int value*/0);
 
-        std::thread(&tamper::run, this);
+        daemon  = new std::thread(&tamper::run, this);
     }
 
-    void start(){
+    ~tamper(){
+        daemon->join();
+        delete daemon;
+    }
+
+    void notify(){
         sem_post(&immu_come);
     }
 
@@ -37,7 +45,7 @@ public:
     void run(){
         while(running==true){
             sem_wait(&immu_come);
-            lsm->compact_immutable;
+            callee();
             sem_post(&immu_done);
         }
     }
