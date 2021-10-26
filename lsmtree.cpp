@@ -38,6 +38,9 @@ int lsmtree::put(const std::string &key, const std::string &val){
     if(mutab->size() == MUTABLE_LIMIT){
         if(immutab!=nullptr){
             tamp->wait();
+            fprintf(stderr, "wait until tamper finish compact immutable.\n");
+            tamp->wait();
+            fprintf(stderr, "tamper has finished compacting.\n");
         }
         immutab = mutab;
         tamp->notify();
@@ -53,6 +56,19 @@ int lsmtree::del(const std::string &key){
 }
 
 int lsmtree::subside(){
-    //TODO
+    if(levels.size()==0){
+        std::vector<sstable*> lev0;
+        levels.push_back(lev0);
+    }
+
+    sstable *sst = new sstable;
+    immutab->scan([=](const std::string &key, const std::string &val) ->int {
+        char data[1024];
+        sprintf(data, "%d%s%d%s\0", key.size(), key.c_str(), val.size(), val.c_str());
+        sst->write(data, strlen(data));
+        return 0;
+    });
+
+    levels[0].push_back(sst);
     return 0;
 }

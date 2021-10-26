@@ -1,6 +1,8 @@
 #ifndef _MEMTABLE_H
 #define _MEMTABLE_H
 
+#include <functional>
+#include <string.h>
 #include "skiplist.h"
 
 class memtable{
@@ -36,6 +38,15 @@ public:
     int size(){
         return dict.size();
     }
+
+    int scan(std::function<int(const std::string, const std::string)> visit){
+        for(skiplist::iterator it = dict.begin(); it!=dict.end(); ++it){
+            node * p = *it;
+            visit(p->key, p->val);
+        }
+        return 0;
+    }
+
 };
 
 #endif

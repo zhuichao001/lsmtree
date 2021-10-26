@@ -1,7 +1,7 @@
 #include "skiplist.h"
 
 
-node *skiplist::search(const string &k){
+node *skiplist::search(const std::string &k){
     node *cur = this->head;
     for(int i=this->height-1; i>=0; --i){
         while(cur->forwards[i]->key<k){
@@ -15,7 +15,7 @@ node *skiplist::search(const string &k){
 }
 
 
-node *skiplist::insert(const string &k, const string &v){
+node *skiplist::insert(const std::string &k, const std::string &v){
     node *updates[this->MAXHEIGHT];
     node *cur = this->head;
 
@@ -50,13 +50,13 @@ node *skiplist::insert(const string &k, const string &v){
 
 
 void skiplist::print(){
-    cout << "level:" << this->height << endl;
+    std::cout << "level:" << this->height << std::endl;
     for(int i=this->height-1; i>=0; --i){
         node *cur = this->head;
         while(cur != this->nil){
-            cout << cur->key << ":" << cur->val << " |-> ";
+            std::cout << cur->key << ":" << cur->val << " |-> ";
             cur = cur->forwards[i];
         }
-        cout << "nil" << endl;
+        std::cout << "nil" << std::endl;
     }
 }

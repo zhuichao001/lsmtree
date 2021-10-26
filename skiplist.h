@@ -7,8 +7,6 @@
 #include <iostream>
 #include <string>
 
-using namespace std;
-
 
 class skiplist;
 
@@ -17,16 +15,20 @@ class node {
     int height;
     node **forwards;
 public:
-    string key;
-    string val;
+    std::string key;
+    std::string val;
 
-    node(const int level, const string &k, const string &v=""):
+    node(const int level, const std::string &k, const std::string &v=""):
         key(k),
         val(v){
         forwards = new node*[level];
         for(int i=0; i<level; ++i){
             forwards[i] = nullptr;
         }
+    }
+
+    node *next(){
+        return forwards[0];
     }
 };
 
@@ -49,6 +51,25 @@ class skiplist {
     }
 
 public:
+    class iterator;
+    class iterator{
+    public:
+        node *ptr;
+
+        node * operator *(){
+            return ptr;
+        }
+
+        iterator & operator ++(){
+            ptr = ptr->next();
+            return *this;
+        }
+
+        bool operator !=(const iterator &other){
+            return ptr!=other.ptr;
+        }
+    };
+
     skiplist(int maxh, int branch):
         MAXHEIGHT(maxh),
         BRANCHING(branch){
@@ -61,11 +82,23 @@ public:
         }
     }
 
+    iterator begin(){
+        iterator it;
+        it.ptr = head->next();
+        return it;
+    }
+
+    iterator end(){
+        iterator it;
+        it.ptr = nil;
+        return it;
+    }
+
     int size(){ return length; }
 
-    node *search(const string &k);
+    node *search(const std::string &k);
 
-    node *insert(const string &k, const string &v);
+    node *insert(const std::string &k, const std::string &v);
 
     void print();
 };

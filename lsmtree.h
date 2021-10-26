@@ -38,9 +38,10 @@ public:
     }
 
     int get(const std::string &key, std::string &val);
-    int put(const std::string &key, const std::string &val);
-    int del(const std::string &key);
 
+    int put(const std::string &key, const std::string &val);
+
+    int del(const std::string &key);
 };
 
 #endif
