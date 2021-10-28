@@ -1,6 +1,8 @@
 #ifndef _SSTABLE_H
 #define _SSTABLE_H
 
+#include <map>
+#include <atomic>
 #include <unistd.h>
 #include <fcntl.h>
 #include <sys/stat.h>
@@ -8,7 +10,6 @@
 #include <stdio.h>
 #include <string.h>
 #include <errno.h>
-#include <map>
 #include "skiplist.h"
 #include "error.h"
 #include "hash.h"
@@ -20,12 +21,14 @@ class sstable{
     int fd;
     const int  FILE_LIMIT;
 
-    int idxoffset;
-    int datoffset;
+    std::atomic<int> idxoffset;
+    std::atomic<int> datoffset;
     std::multimap<int, int> codemap; //hashcode => datoffset
 public:
     sstable(const int tierno):
         FILE_LIMIT((40<<20)*10*tierno){
+        idxoffset = 0;
+        datoffset = FILE_LIMIT;
     }
 
     int create(const char *path){
