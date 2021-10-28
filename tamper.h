@@ -1,12 +1,14 @@
 #ifndef _TAMPER_H_
 #define _TAMPER_H_
 
-#include <iostream>
-#include <semaphore.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include <unistd.h>
+#include <semaphore.h>
+#include <pthread.h>
+#include <functional>
 #include <memory>
 #include <thread>
-#include <functional>
 
 
 class tamper{
@@ -15,6 +17,7 @@ class tamper{
     sem_t immu_come;
     bool running;
     std::thread * daemon;
+
 public:
     tamper(std::function<int(void)> f):
         callee(f),

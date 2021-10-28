@@ -1,0 +1,7 @@
+#ifndef _LSMTREE_ERROR_H_
+#define _LSMTREE_ERROR_H_
+
+#define ERROR_PARAM_INVALID -101
+#define ERROR_SPACE_NOT_ENOUGH -102
+
+#endif
