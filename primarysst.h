@@ -165,6 +165,14 @@ public:
     }
 
     int scan(std::function<int(const char*, const char*)> func){
+        for(int pos=0; pos<idxoffset; pos+=sizeof(int)*2){
+            const int offset = *(int*)(mem+pos+sizeof(int));
+            const int keylen = *(int*)(mem+offset);
+            const char *kp = mem+offset+sizeof(int);
+            const int vallen = *(int*)(mem+offset+sizeof(int)+keylen);
+            const char *vp = mem+offset+sizeof(int)+keylen+sizeof(int);
+            func(kp, vp);
+        }
         return 0;
     }
 
@@ -175,7 +183,8 @@ public:
 
     int remove(){
         ::close(fd);
-        return ::remove(path.c_str());
+        ::remove(path.c_str());
+        return 0;
     }
 
 };

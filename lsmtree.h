@@ -67,7 +67,7 @@ inline int slot(const char *p){
     if(p==nullptr){
         return -1;
     }
-    return int(*p>>5);
+    return int(*p>>5)&0x07;
 }
 
 #endif
