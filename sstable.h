@@ -22,7 +22,7 @@ class sstable{
 
     int idxoffset;
     int datoffset;
-    std::multimap<int, int> codemap; //code->datoffset
+    std::multimap<int, int> codemap; //hashcode => datoffset
 public:
     sstable(const int tierno):
         FILE_LIMIT((40<<20)*10*tierno){
@@ -43,13 +43,13 @@ public:
     int reload(){
         idxoffset = 0;
         datoffset = FILE_LIMIT;
-        int data[4];
         for(int pos=0; ; pos+=sizeof(int)*2){
-            pread(fd, data, sizeof(data)*sizeof(int), pos);
-            const int code = data[0];
-            const int offset = data[1];
-            const int len = data[2];
-            const int flag = data[3]; //TODO look del_flag
+            int meta[4];
+            pread(fd, meta, sizeof(meta)*sizeof(int), pos);
+            const int code   = meta[0];
+            const int offset = meta[1];
+            const int len    = meta[2];
+            const int flag   = meta[3]; //TODO look del_flag
             idxoffset = pos;
             if(code==0 && offset==0){
                 break;
@@ -64,18 +64,19 @@ public:
     }
 
     int get(const std::string &key, std::string &val){
-        int hashcode = hash(key.c_str(), key.size());
-        int data[4];
+        const int hashcode = hash(key.c_str(), key.size());
         for(int pos=0; pos<idxoffset; pos+=sizeof(int)*2){
-            pread(fd, data, sizeof(data)*sizeof(int), pos);
-            if(hashcode==data[0]){
-                const int offset = data[1];
-                const int len = data[2];
-                const int flag = data[3]; //TODO look del_flag
-                char raw[len];
-                pread(fd, raw, len, offset);
+            int meta[4];
+            pread(fd, meta, sizeof(meta)*sizeof(int), pos);
+            if(hashcode==meta[0]){
+                const int offset = meta[1];
+                const int len = meta[2];
+                const int flag = meta[3]; //TODO look del_flag
+
+                char data[len];
+                pread(fd, data, len, offset);
                 std::string ckey;
-                loadkv(raw, ckey, val);
+                loadkv(data, ckey, val);
                 if(key==ckey){
                     return 0;
                 }
@@ -93,21 +94,23 @@ public:
         }
 
         char data[datalen];
-
-        datoffset = datoffset - datalen;
         memcpy(data, &keylen, sizeof(int));
         memcpy(data+sizeof(int), key.c_str(), sizeof(int));
         memcpy(data+sizeof(int)+key.size(), &vallen, sizeof(int));
         memcpy(data+sizeof(int)+key.size()+sizeof(int), val.c_str(), sizeof(int));
 
+        datoffset = datoffset - datalen;
         pwrite(fd, data, datalen, datoffset);
 
+        int meta[4];
         const int hashcode = hash(key.c_str(), key.size());
-        char index[8];
-        memcpy(index, &hashcode, sizeof(int));
-        memcpy(index+sizeof(int), &datoffset, sizeof(int));
-        pwrite(fd, data, datalen, idxoffset);
-        idxoffset += sizeof(int)*2;
+        memcpy(meta, &hashcode, sizeof(int));
+        memcpy(meta+sizeof(int), &datoffset, sizeof(int));
+        memcpy(meta+sizeof(int)*2, &datalen, sizeof(int));
+        const int flag = 0;
+        memcpy(meta+sizeof(int)*3, &flag, sizeof(int));
+        pwrite(fd, meta, sizeof(meta)*sizeof(int), idxoffset);
+        idxoffset += sizeof(meta)*sizeof(int);
 
         return 0;
     }
@@ -119,22 +122,23 @@ public:
             put(std::string((*it).first), std::string((*it).second));
         }
 
-        int data[4] = {0,0,0,0}; // indicate ENDING
-        pwrite(fd, data, sizeof(data)*sizeof(int), idxoffset);
+        int meta[4] = {0,0,0,0}; // indicate ENDING
+        pwrite(fd, meta, sizeof(meta)*sizeof(int), idxoffset);
         return 0;
     }
 
     int scan(std::function<int(const char*, const char*)> func){
-        int data[4];
+        int meta[4];
         for(int pos=0; pos<idxoffset; pos+=sizeof(int)*2){
-            pread(fd, data, sizeof(data)*sizeof(int), pos);
-            const int offset = data[1];
-            const int len = data[2];
-            const int flag = data[3]; //TODO look del_flag
-            char raw[len];
-            pread(fd, raw, len, offset);
+            pread(fd, meta, sizeof(meta)*sizeof(int), pos);
+            const int offset = meta[1];
+            const int len    = meta[2];
+            const int flag   = meta[3]; //TODO look del_flag
+            char data[len];
+            pread(fd, data, len, offset);
+
             std::string key, val;
-            loadkv(raw, key, val);
+            loadkv(data, key, val);
             func(key.c_str(), val.c_str());
         }
         return 0;
