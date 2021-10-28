@@ -66,6 +66,55 @@ int lsmtree::subside(){
     });
 
     primarys.push_back(pri);
-    //TODO if primarys too large
+    if(primarys.size() >= pricount){
+        std::vector<std::pair<const char*, const char*> > buckets[8];
+        primarys[0]->scan([&](const char *k, const char *v) ->int {
+            buckets[slot(k)].push_back(std::make_pair(k, v));
+            return 0;
+        }); 
+
+        for(int i=0; i<8; ++i){
+            pushdown(0, i, buckets[i]);
+        }
+        primarys[0]->remove();
+        delete primarys[0];
+        primarys.erase(primarys.begin());
+    }
+    return 0;
+}
+
+int lsmtree::pushdown(int li, int slot, std::vector<std::pair<const char*, const char*> > &income){
+    if(levels.size()<=li){
+        std::vector<sstable*> tier;
+        for(int i=0; i<sstcount; ++i){
+            sstable *sst = new sstable;
+            tier.push_back(sst);
+        }
+        levels.push_back(tier);
+    }
+
+    std::vector<std::pair<const char*, const char*> > tuples; //for reset current tier
+    std::vector<std::pair<const char*, const char*> > rest;   //for push down next tier
+    std::vector<std::pair<const char*, const char*> > *dest = &tuples;
+
+    int pos = 0;
+    std::vector<sstable*> &tier = levels[li];
+    tier[slot]->scan([&](const char* k, const char* v) ->int {
+       while(pos<income.size() && strcmp(k, income[pos].first)>0){
+           if(tuples.size() >= sstlimit(li)*4/5){
+               dest = &rest;
+           }
+           dest->push_back(income[pos]);
+           ++pos;
+       }
+       dest->push_back(std::make_pair(k,v));
+       return 0;
+    });
+
+    tier[slot]->reset(tuples);
+    if(!rest.empty()){
+        pushdown(li+1, slot, rest);
+    }
+
     return 0;
 }

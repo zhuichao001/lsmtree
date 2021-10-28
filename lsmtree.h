@@ -27,7 +27,11 @@ class lsmtree{
     std::atomic<std::uint64_t> verbase;
     tamper *tamp;
 
+    const int pricount = 16;
+    const int sstcount = 8;
+    const int sstlimit(const int li){ return 16 * (li<<4); }//leve 1+'s max size
     int subside();
+    int pushdown(int li, int slot, std::vector<std::pair<const char*, const char*> > &income);
 public:
     lsmtree():
         immutab(nullptr),
@@ -58,5 +62,12 @@ public:
 
     int del(const std::string &key);
 };
+
+inline int slot(const char *p){
+    if(p==nullptr){
+        return -1;
+    }
+    return int(*p>>5);
+}
 
 #endif

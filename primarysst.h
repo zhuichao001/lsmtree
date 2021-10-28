@@ -17,6 +17,7 @@
 const int MEM_FILE_LIMIT = 40<<20; //40M 
 
 class primarysst{
+    std::string path;
     int fd;
     char *mem;
     int idxoffset;
@@ -63,6 +64,7 @@ public:
     }
 
     int create(const char *path){
+        this->path = path;
         fd = ::open(path, O_RDWR | O_CREAT , 0664);
         if(fd<0) {
             fprintf(stderr, "open file error: %s\n", strerror(errno));
@@ -83,6 +85,7 @@ public:
     }
 
     int load(const char *path){
+        this->path = path;
         fd = ::open(path, O_RDWR, 0664);
         if(fd<0) {
             fprintf(stderr, "open file error: %s\n", strerror(errno));
@@ -120,16 +123,16 @@ public:
     }
 
     int put(const std::string &key, const std::string &val){
-        const int datalen = sizeof(int)+key.size()+sizeof(int)+val.size();
+        const int keylen = key.size()+1;
+        const int vallen = val.size()+1;
+        const int datalen = sizeof(int) + keylen + sizeof(int) + vallen;
         if(datoffset - idxoffset <= datalen){
             return ERROR_SPACE_NOT_ENOUGH;
         }
 
         datoffset = datoffset - datalen;
-        const int keylen = key.size();
         memcpy(mem+datoffset, &keylen, sizeof(int));
         memcpy(mem+datoffset+sizeof(int), key.c_str(), sizeof(int));
-        const int vallen = val.size();
         memcpy(mem+datoffset+sizeof(int)+key.size(), &vallen, sizeof(int));
         memcpy(mem+datoffset+sizeof(int)+key.size()+sizeof(int), val.c_str(), sizeof(int));
         msync(mem+datoffset, datalen, MS_SYNC);
@@ -161,9 +164,18 @@ public:
         return -1;
     }
 
+    int scan(std::function<int(const char*, const char*)> func){
+        return 0;
+    }
+
     int release(){
         ::close(fd);
         return 0;
+    }
+
+    int remove(){
+        ::close(fd);
+        return ::remove(path.c_str());
     }
 
 };

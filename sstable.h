@@ -18,7 +18,15 @@ public:
         return 0;
     }
 
-    int write(const char *sst, int len){
+    int put(const std::string &key, std::string &val){
+        return 0;
+    }
+
+    int reset(const std::vector<std::pair<const char*, const char*> > &tuples){
+        return 0;
+    }
+
+    int scan(std::function<int(const char*, const char*)> func){
         return 0;
     }
 };
