@@ -97,13 +97,13 @@ int lsmtree::subside(){
 
     primarys.push_back(pri);
     if(primarys.size() >= pricount){
-        std::vector<std::pair<const char*, const char*> > buckets[8];
+        std::vector<std::pair<const char*, const char*> > buckets[TIER_SST_COUNT];
         primarys[0]->scan([&](const char *k, const char *v) ->int {
             buckets[slot(k)].push_back(std::make_pair(k, v));
             return 0;
         }); 
 
-        for(int i=0; i<8; ++i){
+        for(int i=0; i<TIER_SST_COUNT; ++i){
             pushdown(0, i, buckets[i]);
         }
         primarys[0]->remove();
