@@ -1,6 +1,38 @@
 #include "lsmtree.h"
 
 
+int lsmtree::open(const char *basedir){
+    sprintf(pripath, "%s/pri/\0", basedir);
+    sprintf(sstpath, "%s/sst/\0", basedir);
+    if(!exist(basedir)){
+        mkdir(pripath);
+        mkdir(sstpath);
+    }
+
+    std::vector<std::string> files;
+    ls(pripath, files);
+    for(auto path: files){
+        primarysst *pri = new primarysst;
+        pri->load(path.c_str());
+        primarys.push_back(pri);
+    }
+
+    files.clear();
+    ls(sstpath, files);
+    std::sort(files.begin(), files.end());
+    for(auto path: files){
+        int tierno = atoi(path.c_str()+strlen(sstpath));
+        for(int i=0; i<=tierno; ++i){
+            std::vector<sstable*> tier;
+            levels.push_back(tier);
+        }
+        sstable *sst = new sstable(tierno);
+        sst->load(path.c_str());
+        levels[tierno].push_back(sst);
+    }
+    return 0;
+}
+
 int lsmtree::get(const std::string &key, std::string &val){
     if(mutab->get(key, val)==0){
         return 0;
@@ -37,20 +69,18 @@ int lsmtree::put(const std::string &key, const std::string &val){
 
     if(mutab->size() == MUTABLE_LIMIT){
         if(immutab!=nullptr){
-            tamp->wait();
             fprintf(stderr, "wait until tamper finish compact immutable.\n");
             tamp->wait();
             fprintf(stderr, "tamper has finished compacting.\n");
         }
         immutab = mutab;
         tamp->notify();
-
         mutab = new memtable;
     }
     return 0;
 }
 
-int lsmtree::del(const std::string &key){
+int lsmtree::del(const std::string &key){ //TODO
     ++verbase;
     return mutab->del(key);
 }

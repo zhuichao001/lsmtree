@@ -20,19 +20,26 @@ class lsmtree{
     std::vector<primarysst*> primarys; //level 0
     std::vector<std::vector<sstable*> > levels; //level 1+
 
+    //serial number
     int prinumber;
     int sstnumber;
+
+    //record amount limit per sstable
+    const int pricount = 16;
+    const int sstcount = 8;
+
     char pripath[128];
     char sstpath[128];
 
     std::atomic<std::uint64_t> verbase;
-    tamper *tamp;
+    tamper *tamp; //sweep data from immutable to sst
 
-    const int pricount = 16;
-    const int sstcount = 8;
     const int sstlimit(const int li){ return 16 * (li<<4); }//leve 1+'s max size
+
     int subside();
+
     int pushdown(int li, int slot, std::vector<std::pair<const char*, const char*> > &income);
+
 public:
     lsmtree():
         immutab(nullptr),
@@ -40,40 +47,10 @@ public:
         sstnumber(0),
         verbase(0){
         mutab = new memtable;
-        tamp = new tamper(std::bind(&lsmtree::subside, this));
+        tamp = new tamper(std::bind(&lsmtree::subside, this)); //TODO:multiple threads
     }
 
-    int open(const char *basedir){
-        sprintf(pripath, "%s/pri/\0", basedir);
-        sprintf(sstpath, "%s/sst/\0", basedir);
-        if(!exist(basedir)){
-            mkdir(pripath);
-            mkdir(sstpath);
-        }
-
-        std::vector<std::string> files;
-        ls(pripath, files);
-        for(auto path: files){
-            primarysst *pri = new primarysst;
-            pri->load(path.c_str());
-            primarys.push_back(pri);
-        }
-
-        files.clear();
-        ls(sstpath, files);
-        std::sort(files.begin(), files.end());
-        for(auto path: files){
-            int tierno = atoi(path.c_str()+strlen(sstpath));
-            for(int i=0; i<=tierno; ++i){
-                std::vector<sstable*> tier;
-                levels.push_back(tier);
-            }
-            sstable *sst = new sstable(tierno);
-            sst->load(path.c_str());
-            levels[tierno].push_back(sst);
-        }
-        return 0;
-    }
+    int open(const char *basedir);
 
     ~lsmtree(){
         if(immutab){
