@@ -40,7 +40,15 @@ public:
         return 0;
     }
 
-    int reload(){
+    int load(const char *path){
+        this->path = path;
+        fd = ::open(path, O_RDWR, 0664);
+        if(fd<0) {
+            fprintf(stderr, "open file error: %s\n", strerror(errno));
+            ::close(fd);
+            return -1;
+        }
+
         idxoffset = 0;
         datoffset = FILE_LIMIT;
         for(int pos=0; ; pos+=sizeof(int)*2){

@@ -15,8 +15,6 @@
 
 int fsize(const int fd);
 
-bool fexist(const char *path);
-
 bool fwriteable(const char *path);
 
 bool seekable(const int fd);
@@ -36,6 +34,8 @@ int write_file(const int fd, const std::string &data);
 int append_file(const int fd, const std::string &data);
 
 int copy_file(const char * src, const char * dst);
+
+bool exist(const char *path);
 
 int mkdir(const char* path);
 

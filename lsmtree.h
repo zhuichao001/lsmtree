@@ -3,6 +3,7 @@
 
 #include <vector>
 #include <atomic>
+#include <algorithm>
 #include "memtable.h"
 #include "sstable.h"
 #include "primarysst.h"
@@ -21,8 +22,8 @@ class lsmtree{
 
     int prinumber;
     int sstnumber;
-    const char *pripath;
-    const char *sstpath;
+    char pripath[128];
+    char sstpath[128];
 
     std::atomic<std::uint64_t> verbase;
     tamper *tamp;
@@ -37,13 +38,41 @@ public:
         immutab(nullptr),
         prinumber(0),
         sstnumber(0),
-        pripath("./data/primary/"),
-        sstpath("./data/sstable/"),
         verbase(0){
-        mkdir(pripath);
-        mkdir(sstpath);
         mutab = new memtable;
         tamp = new tamper(std::bind(&lsmtree::subside, this));
+    }
+
+    int open(const char *basedir){
+        sprintf(pripath, "%s/pri/\0", basedir);
+        sprintf(sstpath, "%s/sst/\0", basedir);
+        if(!exist(basedir)){
+            mkdir(pripath);
+            mkdir(sstpath);
+        }
+
+        std::vector<std::string> files;
+        ls(pripath, files);
+        for(auto path: files){
+            primarysst *pri = new primarysst;
+            pri->load(path.c_str());
+            primarys.push_back(pri);
+        }
+
+        files.clear();
+        ls(sstpath, files);
+        std::sort(files.begin(), files.end());
+        for(auto path: files){
+            int tierno = atoi(path.c_str()+strlen(sstpath));
+            for(int i=0; i<=tierno; ++i){
+                std::vector<sstable*> tier;
+                levels.push_back(tier);
+            }
+            sstable *sst = new sstable(tierno);
+            sst->load(path.c_str());
+            levels[tierno].push_back(sst);
+        }
+        return 0;
     }
 
     ~lsmtree(){

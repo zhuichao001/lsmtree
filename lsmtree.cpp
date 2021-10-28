@@ -90,7 +90,10 @@ int lsmtree::pushdown(int li, int slot, std::vector<std::pair<const char*, const
             sstable *sst = new sstable(li);
 
             char path[128];
-            sprintf(path, "%s/%09d.sst\0", sstpath, ++sstnumber);
+            sprintf(path, "%s/%d/\0", sstpath, li);
+            mkdir(path);
+
+            sprintf(path, "%s/%d/%09d.sst\0", sstpath, li, ++sstnumber);
             sst->create(path);
 
             tier.push_back(sst);
