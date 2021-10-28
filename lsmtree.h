@@ -35,8 +35,8 @@ class lsmtree{
 public:
     lsmtree():
         immutab(nullptr),
-        prinumber(1),
-        sstnumber(1),
+        prinumber(0),
+        sstnumber(0),
         pripath("./data/primary/"),
         sstpath("./data/sstable/"),
         verbase(0){

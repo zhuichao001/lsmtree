@@ -13,8 +13,9 @@
 #include "error.h"
 #include "hash.h"
 #include "fio.h"
+#include "encode.h"
 
-const int MEM_FILE_LIMIT = 40<<20; //40M 
+const int MEM_FILE_LIMIT = 20<<20; //20M 
 
 class primarysst{
     std::string path;
@@ -37,17 +38,6 @@ class primarysst{
             datoffset = offset;
             codemap.insert( std::make_pair(hashcode, datoffset) );
         }
-        return 0;
-    }
-
-    int loadkv(int offset, std::string &key, std::string &val){
-        if(offset<=0 || offset>=MEM_FILE_LIMIT){
-            return -1;
-        }
-        int keylen = *(int*)(mem+offset);
-        key.assign(mem+offset+sizeof(int), keylen);
-        int vallen = *(int*)(mem+offset+sizeof(int)+keylen);
-        val.assign(mem+offset+sizeof(int)+keylen+sizeof(int), vallen);
         return 0;
     }
 
@@ -156,7 +146,7 @@ public:
         for (auto iter = pr.first ; iter != pr.second; ++iter){
             std::string destkey;
             const int offset = iter->second;
-            loadkv(offset, destkey, val);
+            loadkv(mem+offset, destkey, val);
             if(destkey==key){
                 return 0;
             }

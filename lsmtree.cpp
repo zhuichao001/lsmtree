@@ -58,7 +58,7 @@ int lsmtree::del(const std::string &key){
 int lsmtree::subside(){
     primarysst *pri = new primarysst;
     char path[128];
-    sprintf(path, "%s/%d.pri\0", pripath, prinumber);
+    sprintf(path, "%s/%09d.pri\0", pripath, ++prinumber);
     pri->create(path);
 
     immutab->scan([=](const std::string &key, const std::string &val) ->int {
@@ -87,7 +87,12 @@ int lsmtree::pushdown(int li, int slot, std::vector<std::pair<const char*, const
     if(levels.size()<=li){
         std::vector<sstable*> tier;
         for(int i=0; i<sstcount; ++i){
-            sstable *sst = new sstable;
+            sstable *sst = new sstable(li);
+
+            char path[128];
+            sprintf(path, "%s/%09d.sst\0", sstpath, ++sstnumber);
+            sst->create(path);
+
             tier.push_back(sst);
         }
         levels.push_back(tier);
