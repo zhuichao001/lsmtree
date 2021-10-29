@@ -1,5 +1,21 @@
 #include "lsmtree.h"
 
+inline int bitsof(const int t){
+    int i=1, count=0;
+    while(t/i!=0){
+        ++count;
+        i <<= 1;
+    }
+    return count;
+}
+
+inline static int slot(const char *p){
+    static const int BITS = bitsof((TIER_SST_COUNT-1));
+    if(p==nullptr){
+        return -1;
+    }
+    return int(*p>>BITS)&(TIER_SST_COUNT-1);
+}
 
 int lsmtree::open(const char *basedir){
     sprintf(pripath, "%s/pri/\0", basedir);
