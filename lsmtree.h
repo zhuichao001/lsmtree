@@ -37,9 +37,9 @@ class lsmtree{
 
     const int sstlimit(const int li){ return 16 * (li<<4); }//leve 1+'s max size
 
-    int subside();
+    int sweep();
 
-    int pushdown(int li, int slot, std::vector<std::pair<const char*, const char*> > &income);
+    int compact(int li, int slot, std::vector<std::pair<const char*, const char*> > &income);
 
 public:
     lsmtree():
@@ -48,7 +48,7 @@ public:
         sstnumber(0),
         verbase(0){
         mutab = new memtable;
-        tamp = new tamper(std::bind(&lsmtree::subside, this)); //TODO:multiple threads
+        tamp = new tamper(std::bind(&lsmtree::sweep, this)); //TODO:multiple threads
     }
 
     int open(const char *basedir);

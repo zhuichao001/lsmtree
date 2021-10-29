@@ -85,7 +85,8 @@ int lsmtree::del(const std::string &key){ //TODO
     return mutab->del(key);
 }
 
-int lsmtree::subside(){
+//transfer hot-data in immumemtable down to sst
+int lsmtree::sweep(){
     primarysst *pri = new primarysst;
     char path[128];
     sprintf(path, "%s/%09d.pri\0", pripath, ++prinumber);
@@ -104,7 +105,7 @@ int lsmtree::subside(){
         }); 
 
         for(int i=0; i<TIER_SST_COUNT; ++i){
-            pushdown(0, i, buckets[i]);
+            compact(0, i, buckets[i]);
         }
         primarys[0]->remove();
         delete primarys[0];
@@ -113,7 +114,7 @@ int lsmtree::subside(){
     return 0;
 }
 
-int lsmtree::pushdown(int li, int slot, std::vector<std::pair<const char*, const char*> > &income){
+int lsmtree::compact(int li, int slot, std::vector<std::pair<const char*, const char*> > &income){
     if(levels.size()<=li){
         std::vector<sstable*> tier;
         for(int i=0; i<sstcount; ++i){
@@ -151,7 +152,7 @@ int lsmtree::pushdown(int li, int slot, std::vector<std::pair<const char*, const
 
     tier[slot]->reset(tuples);
     if(!rest.empty()){
-        pushdown(li+1, slot, rest);
+        compact(li+1, slot, rest);
     }
 
     return 0;
