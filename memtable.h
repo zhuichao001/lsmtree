@@ -21,28 +21,23 @@ public:
         return 0;
     }
 
-    int put(const std::string &key, const std::string &val){
-        node *res = dict.search(key);
-        if(res==nullptr){
-            dict.insert(key, val);
-            return 1;
-        }
-        res->val = val;
+    int put(const std::string &key, const std::string &val, const int flag=0){
+        dict.insert(key, val, flag);
         return 0;
     }
 
     int del(const std::string &key){
-        return put(key, "");
+        return put(key, "", FLAG_DEL);
     }
 
     int size(){
         return dict.size();
     }
 
-    int scan(std::function<int(const std::string, const std::string)> visit){
+    int scan(std::function<int(const std::string, const std::string, int)> visit){
         for(skiplist::iterator it = dict.begin(); it!=dict.end(); ++it){
             node * p = *it;
-            visit(p->key, p->val);
+            visit(p->key, p->val, p->flag);
         }
         return 0;
     }

@@ -14,6 +14,7 @@
 #include "hash.h"
 #include "fio.h"
 #include "encode.h"
+#include "types.h"
 
 const int MEM_FILE_LIMIT = 20<<20; //20M 
 
@@ -23,20 +24,25 @@ class primarysst{
     char *mem;
     int idxoffset;
     int datoffset;
-    std::multimap<int, int> codemap; //code->datoffset
+    std::multimap<int, kvtuple> codemap; //code->idxoffset
 
     int restoremeta(){
         idxoffset = 0;
         datoffset = MEM_FILE_LIMIT;
-        for(int pos=0; pos<MEM_FILE_LIMIT; pos+=sizeof(int)*2){
+        for(int pos=0; pos<MEM_FILE_LIMIT; pos+=sizeof(int)*4){
             int hashcode = *(int*)(mem+pos);
             int offset = *(int*)(mem+pos+sizeof(int));
+            int datalen = *(int*)(mem+pos+sizeof(int)*2);
+            int flag = *(int*)(mem+pos+sizeof(int)*3);
+
             idxoffset = pos;
             if(hashcode==0 && offset==0){
                 break;
             }
             datoffset = offset;
-            codemap.insert( std::make_pair(hashcode, datoffset) );
+            char *ckey, *cval;
+            loadkv(mem+datoffset, &ckey, &cval);
+            codemap.insert(std::make_pair(hashcode, kvtuple{ckey, cval, flag}));
         }
         return 0;
     }
@@ -112,7 +118,7 @@ public:
         return 0;
     }
 
-    int put(const std::string &key, const std::string &val){
+    int put(const std::string &key, const std::string &val, int flag=0){
         const int keylen = key.size()+1;
         const int vallen = val.size()+1;
         const int datalen = sizeof(int) + keylen + sizeof(int) + vallen;
@@ -130,8 +136,10 @@ public:
         const int hashcode = hash(key.c_str(), key.size());
         memcpy(mem+idxoffset, &hashcode, sizeof(int));
         memcpy(mem+idxoffset+sizeof(int), &datoffset, sizeof(int));
-        msync(mem+datoffset, datalen, MS_SYNC);
-        idxoffset += sizeof(int)*2;
+        memcpy(mem+idxoffset+sizeof(int)*2, &datalen, sizeof(int));
+        memcpy(mem+idxoffset+sizeof(int)*3, &flag, sizeof(int));
+        msync(mem+idxoffset, sizeof(int)*4, MS_SYNC);
+        idxoffset += sizeof(int)*4;
 
         return 0;
     }
@@ -144,24 +152,23 @@ public:
         }
 
         for (auto iter = pr.first ; iter != pr.second; ++iter){
-            std::string destkey;
-            const int offset = iter->second;
-            loadkv(mem+offset, destkey, val);
-            if(destkey==key){
-                return 0;
+            const kvtuple &t = iter->second;
+            if(strcmp(key.c_str(), t.k)==0){
+                return t.flag==0? SUCCESS : ERROR_KEY_NOTEXIST;
             }
         }
         return -1;
     }
 
-    int scan(std::function<int(const char*, const char*)> func){
-        for(int pos=0; pos<idxoffset; pos+=sizeof(int)*2){
+    int scan(std::function<int(const char*, const char*, int)> func){
+        for(int pos=0; pos<idxoffset; pos+=sizeof(int)*4){
             const int offset = *(int*)(mem+pos+sizeof(int));
-            const int keylen = *(int*)(mem+offset);
-            const char *kp = mem+offset+sizeof(int);
-            const int vallen = *(int*)(mem+offset+sizeof(int)+keylen);
-            const char *vp = mem+offset+sizeof(int)+keylen+sizeof(int);
-            func(kp, vp);
+            const int datalen = *(int*)(mem+pos+sizeof(int)*2);
+            const int flag = *(int*)(mem+pos+sizeof(int)*3);
+
+            char *ckey, *cval;
+            loadkv(mem+offset, &ckey, &cval);
+            func(ckey, cval, flag);
         }
         return 0;
     }

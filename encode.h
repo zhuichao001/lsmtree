@@ -3,6 +3,6 @@
 
 #include <string>
 
-int loadkv(char *data, std::string &key, std::string &val);
+int loadkv(char *data, char **ckey, char **cval);
 
 #endif

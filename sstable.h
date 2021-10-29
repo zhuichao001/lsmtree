@@ -15,6 +15,7 @@
 #include "hash.h"
 #include "fio.h"
 #include "encode.h"
+#include "types.h"
 
 class sstable{
     std::string path;
@@ -71,54 +72,57 @@ public:
     }
 
     int close(){
+        ::close(fd);
         return 0;
     }
 
     int get(const std::string &key, std::string &val){
         const int hashcode = hash(key.c_str(), key.size());
-        for(int pos=0; pos<idxoffset; pos+=sizeof(int)*2){
+        for(int pos=0; pos<idxoffset; pos+=sizeof(int)*4){
             int meta[4];
             pread(fd, meta, sizeof(meta)*sizeof(int), pos);
             if(hashcode==meta[0]){
                 const int offset = meta[1];
-                const int len = meta[2];
-                const int flag = meta[3]; //TODO look del_flag
+                const int datlen = meta[2];
+                const int flag = meta[3];
+                if(flag==FLAG_DEL){
+                    continue;
+                }
 
-                char data[len];
-                pread(fd, data, len, offset);
-                std::string ckey;
-                loadkv(data, ckey, val);
-                if(key==ckey){
+                char data[datlen];
+                pread(fd, data, datlen, offset);
+                char *ckey, *cval;
+                loadkv(data, &ckey, &cval);
+                if(strcmp(ckey, key.c_str())==0){
                     return 0;
                 }
             }
         }
-        return -1;
+        return ERROR_KEY_NOTEXIST;
     }
 
-    int put(const std::string &key, const std::string &val){
+    int put(const std::string &key, const std::string &val, int flag=0){
         const int keylen = key.size()+1;
         const int vallen = val.size()+1;
-        const int datalen = sizeof(int) + keylen + sizeof(int) + vallen;
-        if(datoffset - idxoffset <= datalen){
+        const int datlen = sizeof(int) + keylen + sizeof(int) + vallen;
+        if(datoffset - idxoffset <= datlen){
             return ERROR_SPACE_NOT_ENOUGH;
         }
 
-        char data[datalen];
+        char data[datlen];
         memcpy(data, &keylen, sizeof(int));
         memcpy(data+sizeof(int), key.c_str(), sizeof(int));
         memcpy(data+sizeof(int)+key.size(), &vallen, sizeof(int));
         memcpy(data+sizeof(int)+key.size()+sizeof(int), val.c_str(), sizeof(int));
 
-        datoffset = datoffset - datalen;
-        pwrite(fd, data, datalen, datoffset);
+        datoffset = datoffset - datlen;
+        pwrite(fd, data, datlen, datoffset);
 
         int meta[4];
         const int hashcode = hash(key.c_str(), key.size());
         memcpy(meta, &hashcode, sizeof(int));
         memcpy(meta+sizeof(int), &datoffset, sizeof(int));
-        memcpy(meta+sizeof(int)*2, &datalen, sizeof(int));
-        const int flag = 0;
+        memcpy(meta+sizeof(int)*2, &datlen, sizeof(int));
         memcpy(meta+sizeof(int)*3, &flag, sizeof(int));
         pwrite(fd, meta, sizeof(meta)*sizeof(int), idxoffset);
         idxoffset += sizeof(meta)*sizeof(int);
@@ -126,11 +130,12 @@ public:
         return 0;
     }
 
-    int reset(const std::vector<std::pair<const char*, const char*> > &tuples){
+    int reset(const std::vector<kvtuple > &tuples){
         idxoffset = 0;
         datoffset = FILE_LIMIT;
         for(auto it = tuples.begin(); it!=tuples.end(); ++it){
-            put(std::string((*it).first), std::string((*it).second));
+            const kvtuple &t = *it;
+            put(std::string(t.k), std::string(t.v), t.flag);
         }
 
         int meta[4] = {0,0,0,0}; // indicate ENDING
@@ -138,19 +143,20 @@ public:
         return 0;
     }
 
-    int scan(std::function<int(const char*, const char*)> func){
+    int scan(std::function<int(const char*, const char*, int)> func){
         int meta[4];
         for(int pos=0; pos<idxoffset; pos+=sizeof(int)*2){
             pread(fd, meta, sizeof(meta)*sizeof(int), pos);
             const int offset = meta[1];
-            const int len    = meta[2];
-            const int flag   = meta[3]; //TODO look del_flag
-            char data[len];
-            pread(fd, data, len, offset);
+            const int datlen = meta[2];
+            const int flag   = meta[3];
 
-            std::string key, val;
-            loadkv(data, key, val);
-            func(key.c_str(), val.c_str());
+            char data[datlen];
+            pread(fd, data, datlen, offset);
+
+            char *ckey, *cval;
+            loadkv(data, &ckey, &cval);
+            func(ckey, cval, flag);
         }
         return 0;
     }

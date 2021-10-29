@@ -15,7 +15,7 @@ node *skiplist::search(const std::string &k){
 }
 
 
-node *skiplist::insert(const std::string &k, const std::string &v){
+node *skiplist::insert(const std::string &k, const std::string &v, const int flag){
     node *updates[this->MAXHEIGHT];
     node *cur = this->head;
 
@@ -28,6 +28,7 @@ node *skiplist::insert(const std::string &k, const std::string &v){
 
     if(cur->forwards[0]->key==k) { //update
         cur->forwards[0]->val = v;
+        cur->forwards[0]->flag = flag;
         return cur->forwards[0];
     } else { //insert
         ++length;
@@ -39,7 +40,7 @@ node *skiplist::insert(const std::string &k, const std::string &v){
 
         this->height = H>this->height ? H : this->height;
         
-        node * neo = new node(H, k, v);
+        node * neo = new node(H, k, v, flag);
         for(int i=0; i<H; ++i){
             neo->forwards[i] = updates[i]->forwards[i];
             updates[i]->forwards[i] = neo;

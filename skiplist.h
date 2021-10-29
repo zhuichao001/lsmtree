@@ -7,6 +7,9 @@
 #include <iostream>
 #include <string>
 
+enum{
+    FLAG_DEL = -1,
+};
 
 class skiplist;
 
@@ -17,10 +20,12 @@ class node {
 public:
     std::string key;
     std::string val;
+    int flag;
 
-    node(const int level, const std::string &k, const std::string &v=""):
+    node(const int level, const std::string &k, const std::string &v="", const int flagcode=0):
         key(k),
-        val(v){
+        val(v),
+        flag(flagcode){
         forwards = new node*[level];
         for(int i=0; i<level; ++i){
             forwards[i] = nullptr;
@@ -98,7 +103,7 @@ public:
 
     node *search(const std::string &k);
 
-    node *insert(const std::string &k, const std::string &v);
+    node *insert(const std::string &k, const std::string &v, const int flag=0);
 
     void print();
 };

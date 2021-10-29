@@ -44,7 +44,6 @@ int lsmtree::get(const std::string &key, std::string &val){
     if(primarys.size()==0){
         return -1;
     }
-
     for(int i=0; i<primarys.size(); ++i){
         if(primarys[i]->get(key,val)==0){
             return 0;
@@ -92,15 +91,15 @@ int lsmtree::sweep(){
     sprintf(path, "%s/%09d.pri\0", pripath, ++prinumber);
     pri->create(path);
 
-    immutab->scan([=](const std::string &key, const std::string &val) ->int {
-        return pri->put(key, val);
+    immutab->scan([=](const std::string &key, const std::string &val, int flag) ->int {
+        return pri->put(key, val, flag);
     });
 
     primarys.push_back(pri);
     if(primarys.size() >= pricount){
-        std::vector<std::pair<const char*, const char*> > buckets[TIER_SST_COUNT];
-        primarys[0]->scan([&](const char *k, const char *v) ->int {
-            buckets[slot(k)].push_back(std::make_pair(k, v));
+        std::vector<kvtuple> buckets[TIER_SST_COUNT];
+        primarys[0]->scan([&](const char *k, const char *v, int flag) ->int {
+            buckets[slot(k)].push_back(kvtuple{k, v, flag});
             return 0;
         }); 
 
@@ -114,7 +113,7 @@ int lsmtree::sweep(){
     return 0;
 }
 
-int lsmtree::compact(int li, int slot, std::vector<std::pair<const char*, const char*> > &income){
+int lsmtree::compact(int li, int slot, std::vector<kvtuple> &income){
     if(levels.size()<=li){
         std::vector<sstable*> tier;
         for(int i=0; i<sstcount; ++i){
@@ -132,21 +131,23 @@ int lsmtree::compact(int li, int slot, std::vector<std::pair<const char*, const 
         levels.push_back(tier);
     }
 
-    std::vector<std::pair<const char*, const char*> > tuples; //for reset current tier
-    std::vector<std::pair<const char*, const char*> > rest;   //for push down next tier
-    std::vector<std::pair<const char*, const char*> > *dest = &tuples;
+    std::vector<kvtuple> tuples; //for reset current tier
+    std::vector<kvtuple> rest;   //for push down next tier
+    std::vector<kvtuple> *dest = &tuples;
 
     int pos = 0;
     std::vector<sstable*> &tier = levels[li];
-    tier[slot]->scan([&](const char* k, const char* v) ->int {
-       while(pos<income.size() && strcmp(k, income[pos].first)>0){
+    tier[slot]->scan([&](const char* k, const char* v, int flag) ->int {
+       while(pos<income.size() && strcmp(k, income[pos].k)>=0){
            if(tuples.size() >= sstlimit(li)*4/5){
                dest = &rest;
            }
            dest->push_back(income[pos]);
            ++pos;
        }
-       dest->push_back(std::make_pair(k,v));
+       if(pos>=income.size() || strcmp(k, income[pos].k)>0){
+           dest->push_back(kvtuple{k,v,flag});
+       }
        return 0;
     });
 

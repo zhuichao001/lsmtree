@@ -39,7 +39,7 @@ class lsmtree{
 
     int sweep();
 
-    int compact(int li, int slot, std::vector<std::pair<const char*, const char*> > &income);
+    int compact(int li, int slot, std::vector<kvtuple> &income);
 
 public:
     lsmtree():
