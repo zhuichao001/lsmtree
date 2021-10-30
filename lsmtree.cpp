@@ -90,19 +90,18 @@ int lsmtree::put(const std::string &key, const std::string &val){
         return -1;
     }
 
-    //fprintf(stderr, "lsmtree::put, key:%s, val:%s\n", key.c_str(), val.c_str());
-
     /*
     if(mutab->size() == MUTABLE_LIMIT){
         if(immutab!=nullptr){
-            fprintf(stderr, "wait until tamper finish compact immutable.\n");
             tamp->wait();
-            fprintf(stderr, "tamper has finished compacting.\n");
         }
+        std::lock_guard<std::mutex> lock(mux);
         immutab = mutab;
         tamp->notify();
         mutab = new memtable;
-    } */
+    }
+    */
+
     if(mutab->size() == MUTABLE_LIMIT){
         std::lock_guard<std::mutex> lock(mux);
         immutab = mutab;
@@ -111,6 +110,7 @@ int lsmtree::put(const std::string &key, const std::string &val){
         immutab = nullptr;
         mutab = new memtable;
     }
+    
     return 0;
 }
 

@@ -2,7 +2,7 @@
 #include "lsmtree.h"
 
 void test0(){
-    const int COUNT = 10000;
+    const int COUNT = 6000;
     lsmtree db;
     db.open("./data");
     for(int i=0; i<COUNT; ++i){
@@ -27,9 +27,9 @@ void test0(){
         //std::cout << " query " << k << ", hashcode:" << hash(k, strlen(k)) <<std::endl;
         db.get(k,  val);
         if(std::string(v)==val){
-            std::cout<< "yes same:" <<k <<std::endl;
+            std::cerr<< "yes same:" <<k <<std::endl;
         }else{
-            std::cout<< "not same!" << k << ":" << val << ", expect:" << v << std::endl;
+            std::cerr<< "not same!" << k << ":" << val << ", expect:" << v << std::endl;
         }
     }
 }
