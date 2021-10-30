@@ -53,7 +53,8 @@ int lsmtree::get(const std::string &key, std::string &val){
     if(mutab->get(key, val)==0){
         return 0;
     }
-    if(immutab->get(key, val)==0){
+
+    if(immutab!=nullptr && immutab->get(key, val)==0){
         return 0;
     }
 
@@ -82,6 +83,9 @@ int lsmtree::put(const std::string &key, const std::string &val){
         return -1;
     }
 
+    //fprintf(stderr, "lsmtree::put, key:%s, val:%s\n", key.c_str(), val.c_str());
+
+    /*
     if(mutab->size() == MUTABLE_LIMIT){
         if(immutab!=nullptr){
             fprintf(stderr, "wait until tamper finish compact immutable.\n");
@@ -90,6 +94,14 @@ int lsmtree::put(const std::string &key, const std::string &val){
         }
         immutab = mutab;
         tamp->notify();
+        mutab = new memtable;
+    } */
+    if(mutab->size() == MUTABLE_LIMIT){
+        std::lock_guard<std::mutex> lock(mux);
+        immutab = mutab;
+        sweep();
+        delete immutab;
+        immutab = nullptr;
         mutab = new memtable;
     }
     return 0;
@@ -108,7 +120,9 @@ int lsmtree::sweep(){
     pri->create(path);
 
     immutab->scan([=](const std::string &key, const std::string &val, int flag) ->int {
-        return pri->put(key, val, flag);
+        pri->put(key, val, flag);
+        //fprintf(stderr, "sweep from immutable to primarysst, key:%s, val:%s, flag:%d\n", key.c_str(), val.c_str(), flag);
+        return 0;
     });
 
     primarys.push_back(pri);
@@ -130,9 +144,10 @@ int lsmtree::sweep(){
 }
 
 int lsmtree::compact(int li, int slot, std::vector<kvtuple> &income){
+    fprintf(stderr, "compact sst, level:%d, slot:%d\n", li, slot);
     if(levels.size()<=li){
         std::vector<sstable*> tier;
-        for(int i=0; i<sstcount; ++i){
+        for(int i=0; i<TIER_SST_COUNT; ++i){
             sstable *sst = new sstable(li);
 
             char path[128];
@@ -161,7 +176,7 @@ int lsmtree::compact(int li, int slot, std::vector<kvtuple> &income){
            dest->push_back(income[pos]);
            ++pos;
        }
-       if(pos>=income.size() || strcmp(k, income[pos].k)>0){
+       if(pos>=income.size() || strcmp(k, income[pos].k)>0){//TODO:merge same key
            dest->push_back(kvtuple{k,v,flag});
        }
        return 0;

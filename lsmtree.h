@@ -4,6 +4,7 @@
 #include <vector>
 #include <atomic>
 #include <algorithm>
+#include <mutex>
 #include "memtable.h"
 #include "sstable.h"
 #include "primarysst.h"
@@ -11,12 +12,13 @@
 
 typedef std::pair<std::string, std::string> kvpair;
 
-const int MUTABLE_LIMIT = 128;
+const int MUTABLE_LIMIT = 8;
 const int TIER_SST_COUNT = 16;
 
 class lsmtree{
     memtable *mutab;
     memtable *immutab;
+    std::mutex mux;
 
     std::vector<primarysst*> primarys; //level 0
     std::vector<std::vector<sstable*> > levels; //level 1+
@@ -26,8 +28,8 @@ class lsmtree{
     int sstnumber;
 
     //record amount limit per sstable
-    const int pricount = 16;
-    const int sstcount = 8;
+    const int pricount = 64;
+    const int sstcount = 128;
 
     char pripath[128];
     char sstpath[128];

@@ -111,11 +111,11 @@ public:
 
         char data[datlen];
         memcpy(data, &keylen, sizeof(int));
-        memcpy(data+sizeof(int), key.c_str(), sizeof(int));
-        memcpy(data+sizeof(int)+key.size(), &vallen, sizeof(int));
-        memcpy(data+sizeof(int)+key.size()+sizeof(int), val.c_str(), sizeof(int));
+        memcpy(data+sizeof(int), key.c_str(), keylen);
+        memcpy(data+sizeof(int)+keylen, &vallen, sizeof(int));
+        memcpy(data+sizeof(int)+keylen+sizeof(int), val.c_str(), vallen);
 
-        datoffset = datoffset - datlen;
+        datoffset -= datlen;
         pwrite(fd, data, datlen, datoffset);
 
         int meta[4];
@@ -145,7 +145,7 @@ public:
 
     int scan(std::function<int(const char*, const char*, int)> func){
         int meta[4];
-        for(int pos=0; pos<idxoffset; pos+=sizeof(int)*2){
+        for(int pos=0; pos<idxoffset; pos+=sizeof(int)*4){
             pread(fd, meta, sizeof(meta)*sizeof(int), pos);
             const int offset = meta[1];
             const int datlen = meta[2];

@@ -2,27 +2,28 @@
 #include "lsmtree.h"
 
 void test0(){
+    const int COUNT = 9;
     lsmtree db;
     db.open("./data");
-    for(int i=0; i<100000; ++i){
+    for(int i=0; i<COUNT; ++i){
         char k[128];
         char v[128];
-        sprintf(k, "key_%d\0", i);
-        sprintf(v, "val_%d\0", i);
+        sprintf(k, "key_%d", i);
+        sprintf(v, "val_%d", i);
         db.put(k, v);
     }
 
     std::string val;
-    for(int i=0; i<100000; ++i){
+    for(int i=0; i<COUNT; ++i){
         char k[128];
         char v[128];
-        sprintf(k, "key_%d\0", i);
-        sprintf(v, "val_%d\0", i);
+        sprintf(k, "key_%d", i);
+        sprintf(v, "val_%d", i);
         db.get(k,  val);
-        if(std::string(k)==val){
+        if(std::string(v)==val){
             std::cout<< "yes same:" <<k <<std::endl;
         }else{
-            std::cout<< "not same:" <<k <<std::endl;
+            std::cout<< "not same!" << k << ":" << val << ", expect:" << v << std::endl;
         }
     }
 }

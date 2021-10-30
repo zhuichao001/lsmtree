@@ -51,7 +51,7 @@ public:
     primarysst():
         fd(-1),
         mem(nullptr),
-        idxoffset(8),
+        idxoffset(0),
         datoffset(MEM_FILE_LIMIT){
     }
 
@@ -122,15 +122,15 @@ public:
         const int keylen = key.size()+1;
         const int vallen = val.size()+1;
         const int datalen = sizeof(int) + keylen + sizeof(int) + vallen;
-        if(datoffset - idxoffset <= datalen){
+        if(datoffset - idxoffset <= datalen+sizeof(int)*8){
             return ERROR_SPACE_NOT_ENOUGH;
         }
 
         datoffset = datoffset - datalen;
         memcpy(mem+datoffset, &keylen, sizeof(int));
-        memcpy(mem+datoffset+sizeof(int), key.c_str(), sizeof(int));
-        memcpy(mem+datoffset+sizeof(int)+key.size(), &vallen, sizeof(int));
-        memcpy(mem+datoffset+sizeof(int)+key.size()+sizeof(int), val.c_str(), sizeof(int));
+        memcpy(mem+datoffset+sizeof(int), key.c_str(), keylen);
+        memcpy(mem+datoffset+sizeof(int)+keylen, &vallen, sizeof(int));
+        memcpy(mem+datoffset+sizeof(int)+keylen+sizeof(int), val.c_str(), vallen);
         msync(mem+datoffset, datalen, MS_SYNC);
 
         const int hashcode = hash(key.c_str(), key.size());
@@ -141,23 +141,27 @@ public:
         msync(mem+idxoffset, sizeof(int)*4, MS_SYNC);
         idxoffset += sizeof(int)*4;
 
+        char *pkey = mem+datoffset+sizeof(int);
+        char *pval = mem+datoffset+sizeof(int)+keylen+sizeof(int);
+        codemap.insert(std::make_pair(hashcode, kvtuple{pkey, pval, flag}));
+        fprintf(stderr, "put key:%s, hashcode:%d\n", key.c_str(), hashcode);
+
         return 0;
     }
 
     int get(const std::string &key, std::string &val){
         const int hashcode = hash(key.c_str(), key.size());
-        auto pr = codemap.equal_range(hashcode);
-        if(pr.first == std::end(codemap)) {
-            return -1;
-        }
+        fprintf(stderr, "get key:%s, hashcode:%d\n", key.c_str(), hashcode);
 
+        auto pr = codemap.equal_range(hashcode);
         for (auto iter = pr.first ; iter != pr.second; ++iter){
             const kvtuple &t = iter->second;
-            if(strcmp(key.c_str(), t.k)==0){
-                return t.flag==0? SUCCESS : ERROR_KEY_NOTEXIST;
+            if(strcmp(key.c_str(), t.k)==0 && t.flag==0){
+                val.assign(t.v);
+                return SUCCESS;
             }
         }
-        return -1;
+        return ERROR_KEY_NOTEXIST;
     }
 
     int scan(std::function<int(const char*, const char*, int)> func){
