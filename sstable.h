@@ -10,6 +10,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <errno.h>
+#include <math.h>
 #include "skiplist.h"
 #include "error.h"
 #include "hash.h"
@@ -21,13 +22,15 @@ class sstable{
     std::string path;
     int fd;
     const int  FILE_LIMIT;
+    const int level;
 
     std::atomic<int> idxoffset;
     std::atomic<int> datoffset;
     std::multimap<int, int> codemap; //hashcode => datoffset
 public:
     sstable(const int tierno):
-        FILE_LIMIT((40<<20)*10*tierno){
+        level(tierno),
+        FILE_LIMIT((40<<20)*pow(10, tierno)){
         idxoffset = 0;
         datoffset = FILE_LIMIT;
     }
@@ -55,9 +58,10 @@ public:
 
         idxoffset = 0;
         datoffset = FILE_LIMIT;
-        for(int pos=0; ; pos+=sizeof(int)*2){
-            int meta[4];
-            pread(fd, meta, sizeof(meta)*sizeof(int), pos);
+
+        int meta[4];
+        for(int pos=0; ; pos+=sizeof(meta)){
+            pread(fd, meta, sizeof(meta), pos);
             const int code   = meta[0];
             const int offset = meta[1];
             const int len    = meta[2];
@@ -78,9 +82,9 @@ public:
 
     int get(const std::string &key, std::string &val){
         const int hashcode = hash(key.c_str(), key.size());
-        for(int pos=0; pos<idxoffset; pos+=sizeof(int)*4){
-            int meta[4];
-            pread(fd, meta, sizeof(meta)*sizeof(int), pos);
+        int meta[4];
+        for(int pos=0; pos<idxoffset; pos+=sizeof(meta)){
+            pread(fd, meta, sizeof(meta), pos);
             if(hashcode==meta[0]){
                 const int offset = meta[1];
                 const int datlen = meta[2];
@@ -94,6 +98,7 @@ public:
                 char *ckey, *cval;
                 loadkv(data, &ckey, &cval);
                 if(strcmp(ckey, key.c_str())==0){
+                    val.assign(cval);
                     return 0;
                 }
             }
@@ -105,7 +110,7 @@ public:
         const int keylen = key.size()+1;
         const int vallen = val.size()+1;
         const int datlen = sizeof(int) + keylen + sizeof(int) + vallen;
-        if(datoffset - idxoffset <= datlen){
+        if(datoffset - idxoffset <= datlen+sizeof(int)*8){
             return ERROR_SPACE_NOT_ENOUGH;
         }
 
@@ -118,14 +123,10 @@ public:
         datoffset -= datlen;
         pwrite(fd, data, datlen, datoffset);
 
-        int meta[4];
         const int hashcode = hash(key.c_str(), key.size());
-        memcpy(meta, &hashcode, sizeof(int));
-        memcpy(meta+sizeof(int), &datoffset, sizeof(int));
-        memcpy(meta+sizeof(int)*2, &datlen, sizeof(int));
-        memcpy(meta+sizeof(int)*3, &flag, sizeof(int));
-        pwrite(fd, meta, sizeof(meta)*sizeof(int), idxoffset);
-        idxoffset += sizeof(meta)*sizeof(int);
+        int meta[4] = {hashcode, datoffset, datlen, flag};
+        pwrite(fd, meta, sizeof(meta), idxoffset);
+        idxoffset += sizeof(meta);
 
         return 0;
     }
@@ -135,18 +136,19 @@ public:
         datoffset = FILE_LIMIT;
         for(auto it = tuples.begin(); it!=tuples.end(); ++it){
             const kvtuple &t = *it;
-            put(std::string(t.k), std::string(t.v), t.flag);
+            //fprintf(stderr, "reset key:%s, val:%s to sst level:%d \n", t.k, t.v, level);
+            put(t.key, t.val, t.flag);
         }
 
         int meta[4] = {0,0,0,0}; // indicate ENDING
-        pwrite(fd, meta, sizeof(meta)*sizeof(int), idxoffset);
+        pwrite(fd, meta, sizeof(meta), idxoffset);
         return 0;
     }
 
     int scan(std::function<int(const char*, const char*, int)> func){
         int meta[4];
-        for(int pos=0; pos<idxoffset; pos+=sizeof(int)*4){
-            pread(fd, meta, sizeof(meta)*sizeof(int), pos);
+        for(int pos=0; pos<idxoffset; pos+=sizeof(meta)){
+            pread(fd, meta, sizeof(meta), pos);
             const int offset = meta[1];
             const int datlen = meta[2];
             const int flag   = meta[3];
@@ -156,6 +158,7 @@ public:
 
             char *ckey, *cval;
             loadkv(data, &ckey, &cval);
+            //fprintf(stderr, "sst scan %s:%s\n", ckey, cval);
             func(ckey, cval, flag);
         }
         return 0;

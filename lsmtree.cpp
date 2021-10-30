@@ -17,6 +17,13 @@ inline static int slot(const char *p){
     return int(*p>>BITS)&(TIER_SST_COUNT-1);
 }
 
+/*
+inline static int slot(const char *p){
+    int hashcode = hash(p, strlen(p));
+    return hashcode % TIER_SST_COUNT;
+}
+*/
+
 int lsmtree::open(const char *basedir){
     sprintf(pripath, "%s/pri/\0", basedir);
     sprintf(sstpath, "%s/sst/\0", basedir);
@@ -62,7 +69,7 @@ int lsmtree::get(const std::string &key, std::string &val){
         return -1;
     }
     for(int i=0; i<primarys.size(); ++i){
-        if(primarys[i]->get(key,val)==0){
+        if(primarys[i]->get(key, val)==0){
             return 0;
         }
     }
@@ -121,20 +128,21 @@ int lsmtree::sweep(){
 
     immutab->scan([=](const std::string &key, const std::string &val, int flag) ->int {
         pri->put(key, val, flag);
-        //fprintf(stderr, "sweep from immutable to primarysst, key:%s, val:%s, flag:%d\n", key.c_str(), val.c_str(), flag);
         return 0;
     });
 
     primarys.push_back(pri);
-    if(primarys.size() >= pricount){
+    if(primarys.size() >= TIER_PRI_COUNT){
         std::vector<kvtuple> buckets[TIER_SST_COUNT];
         primarys[0]->scan([&](const char *k, const char *v, int flag) ->int {
-            buckets[slot(k)].push_back(kvtuple{k, v, flag});
+            buckets[slot(k)].push_back(kvtuple(k, v, flag));
             return 0;
         }); 
 
         for(int i=0; i<TIER_SST_COUNT; ++i){
-            compact(0, i, buckets[i]);
+            if(!buckets[i].empty()){
+                compact(0, i, buckets[i]);
+            }
         }
         primarys[0]->remove();
         delete primarys[0];
@@ -144,7 +152,6 @@ int lsmtree::sweep(){
 }
 
 int lsmtree::compact(int li, int slot, std::vector<kvtuple> &income){
-    fprintf(stderr, "compact sst, level:%d, slot:%d\n", li, slot);
     if(levels.size()<=li){
         std::vector<sstable*> tier;
         for(int i=0; i<TIER_SST_COUNT; ++i){
@@ -169,18 +176,20 @@ int lsmtree::compact(int li, int slot, std::vector<kvtuple> &income){
     int pos = 0;
     std::vector<sstable*> &tier = levels[li];
     tier[slot]->scan([&](const char* k, const char* v, int flag) ->int {
-       while(pos<income.size() && strcmp(k, income[pos].k)>=0){
-           if(tuples.size() >= sstlimit(li)*4/5){
-               dest = &rest;
-           }
-           dest->push_back(income[pos]);
-           ++pos;
-       }
-       if(pos>=income.size() || strcmp(k, income[pos].k)>0){//TODO:merge same key
-           dest->push_back(kvtuple{k,v,flag});
-       }
-       return 0;
+        while(pos<income.size() && strcmp(income[pos].key.c_str(), k)<=0){
+            if(tuples.size() >= sstlimit(li)*4/5){
+                dest = &rest;
+            }
+            dest->push_back(income[pos]);
+            ++pos;
+        }
+        dest->push_back(kvtuple(k, v, flag));
+        return 0;
     });
+
+    for(int i=pos; i<income.size(); ++i){
+        dest->push_back(income[i]);
+    }
 
     tier[slot]->reset(tuples);
     if(!rest.empty()){

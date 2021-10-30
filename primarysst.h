@@ -144,20 +144,18 @@ public:
         char *pkey = mem+datoffset+sizeof(int);
         char *pval = mem+datoffset+sizeof(int)+keylen+sizeof(int);
         codemap.insert(std::make_pair(hashcode, kvtuple{pkey, pval, flag}));
-        fprintf(stderr, "put key:%s, hashcode:%d\n", key.c_str(), hashcode);
 
         return 0;
     }
 
     int get(const std::string &key, std::string &val){
         const int hashcode = hash(key.c_str(), key.size());
-        fprintf(stderr, "get key:%s, hashcode:%d\n", key.c_str(), hashcode);
 
         auto pr = codemap.equal_range(hashcode);
         for (auto iter = pr.first ; iter != pr.second; ++iter){
             const kvtuple &t = iter->second;
-            if(strcmp(key.c_str(), t.k)==0 && t.flag==0){
-                val.assign(t.v);
+            if(key==t.key && t.flag==0){
+                val = t.val;
                 return SUCCESS;
             }
         }
