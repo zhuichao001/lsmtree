@@ -136,7 +136,6 @@ public:
         datoffset = FILE_LIMIT;
         for(auto it = tuples.begin(); it!=tuples.end(); ++it){
             const kvtuple &t = *it;
-            //fprintf(stderr, "reset key:%s, val:%s to sst level:%d \n", t.k, t.v, level);
             put(t.key, t.val, t.flag);
         }
 
@@ -158,7 +157,6 @@ public:
 
             char *ckey, *cval;
             loadkv(data, &ckey, &cval);
-            //fprintf(stderr, "sst scan %s:%s\n", ckey, cval);
             func(ckey, cval, flag);
         }
         return 0;
