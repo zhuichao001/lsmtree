@@ -12,9 +12,9 @@
 
 typedef std::pair<std::string, std::string> kvpair;
 
-const int MUTABLE_LIMIT = 8;
-const int TIER_SST_COUNT = 16;
-const int TIER_PRI_COUNT = 8;
+const int MUTABLE_LIMIT = 1024;
+const int TIER_PRI_COUNT = 32;
+const int TIER_SST_COUNT(int level);
 
 class lsmtree{
     memtable *mutab;
@@ -27,10 +27,6 @@ class lsmtree{
     //serial number
     int prinumber;
     int sstnumber;
-
-    //record amount limit per sstable
-    const int pricount = 32;
-    const int sstcount = 64;
 
     char pripath[128];
     char sstpath[128];

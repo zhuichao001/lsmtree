@@ -28,9 +28,9 @@ class sstable{
     std::atomic<int> datoffset;
     std::multimap<int, int> codemap; //hashcode => datoffset
 public:
-    sstable(const int tierno):
-        level(tierno),
-        FILE_LIMIT((40<<20)*pow(10, tierno)){
+    sstable(const int lev):
+        level(lev),
+        FILE_LIMIT((4<<20)*pow(8, level)){
         idxoffset = 0;
         datoffset = FILE_LIMIT;
     }

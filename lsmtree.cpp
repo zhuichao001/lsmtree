@@ -1,28 +1,23 @@
 #include "lsmtree.h"
 
-inline int bitsof(const int t){
-    int i=1, count=0;
-    while(t/i!=0){
-        ++count;
-        i <<= 1;
-    }
-    return count;
+const int TIER_SST_COUNT(int level){
+    return 16 << (level*4);
 }
 
-inline static int slot(const char *p){
-    static const int BITS = bitsof((TIER_SST_COUNT-1));
-    if(p==nullptr){
-        return -1;
+inline static int slot(int level, const char *p){
+    if(strlen(p)<(level+1)/2){
+        return 0;
     }
-    return int(*p>>BITS)&(TIER_SST_COUNT-1);
+    int idx = 0;
+    for(int i=0; i<=level; ++i){
+        if(i%2==0){
+            idx = (idx<<4) + ((p[i/2]>>4) & 0xf);
+        }else{
+            idx = (idx<<4) + (p[i/2] & 0xf);
+        }
+    }
+    return idx;
 }
-
-/*
-inline static int slot(const char *p){
-    int hashcode = hash(p, strlen(p));
-    return hashcode % TIER_SST_COUNT;
-}
-*/
 
 int lsmtree::open(const char *basedir){
     sprintf(pripath, "%s/pri/\0", basedir);
@@ -44,14 +39,14 @@ int lsmtree::open(const char *basedir){
     ls(sstpath, files);
     std::sort(files.begin(), files.end());
     for(auto path: files){
-        int tierno = atoi(path.c_str()+strlen(sstpath));
-        for(int i=0; i<=tierno; ++i){
+        int level = atoi(path.c_str()+strlen(sstpath));
+        for(int i=0; i<level; ++i){
             std::vector<sstable*> tier;
             levels.push_back(tier);
         }
-        sstable *sst = new sstable(tierno);
+        sstable *sst = new sstable(level);
         sst->load(path.c_str());
-        levels[tierno].push_back(sst);
+        levels[level-1].push_back(sst);
     }
     return 0;
 }
@@ -130,18 +125,20 @@ int lsmtree::sweep(){
         pri->put(key, val, flag);
         return 0;
     });
-
     primarys.push_back(pri);
+
     if(primarys.size() >= TIER_PRI_COUNT){
-        std::vector<kvtuple> buckets[TIER_SST_COUNT];
+        const int NEXT_LEVEL = 1;
+        const int SSTCOUNT = TIER_SST_COUNT(NEXT_LEVEL);
+        std::vector<kvtuple> buckets[SSTCOUNT];
         primarys[0]->scan([&](const char *k, const char *v, int flag) ->int {
-            buckets[slot(k)].push_back(kvtuple(k, v, flag));
+            buckets[slot(NEXT_LEVEL, k)].push_back(kvtuple(k, v, flag));
             return 0;
         }); 
 
-        for(int i=0; i<TIER_SST_COUNT; ++i){
+        for(int i=0; i<SSTCOUNT; ++i){
             if(!buckets[i].empty()){
-                compact(0, i, buckets[i]);
+                compact(NEXT_LEVEL, i, buckets[i]);
             }
         }
         primarys[0]->remove();
@@ -151,17 +148,17 @@ int lsmtree::sweep(){
     return 0;
 }
 
-int lsmtree::compact(int li, int slot, std::vector<kvtuple> &income){
-    if(levels.size()<=li){
+int lsmtree::compact(int level, int slot, std::vector<kvtuple> &income){
+    if(levels.size()<level){
         std::vector<sstable*> tier;
-        for(int i=0; i<TIER_SST_COUNT; ++i){
-            sstable *sst = new sstable(li);
+        for(int i=0; i<TIER_SST_COUNT(level); ++i){
+            sstable *sst = new sstable(level);
 
             char path[128];
-            sprintf(path, "%s/%d/\0", sstpath, li);
+            sprintf(path, "%s/%d/\0", sstpath, level);
             mkdir(path);
 
-            sprintf(path, "%s/%d/%09d.sst\0", sstpath, li, ++sstnumber);
+            sprintf(path, "%s/%d/%09d.sst\0", sstpath, level, ++sstnumber);
             sst->create(path);
 
             tier.push_back(sst);
@@ -174,10 +171,10 @@ int lsmtree::compact(int li, int slot, std::vector<kvtuple> &income){
     std::vector<kvtuple> *dest = &tuples;
 
     int pos = 0;
-    std::vector<sstable*> &tier = levels[li];
+    std::vector<sstable*> &tier = levels[level-1];
     tier[slot]->scan([&](const char* k, const char* v, int flag) ->int {
         while(pos<income.size() && strcmp(income[pos].key.c_str(), k)<=0){
-            if(tuples.size() >= sstlimit(li)*4/5){
+            if(tuples.size() >= sstlimit(level)*7/8){
                 dest = &rest;
             }
             dest->push_back(income[pos]);
@@ -193,7 +190,7 @@ int lsmtree::compact(int li, int slot, std::vector<kvtuple> &income){
 
     tier[slot]->reset(tuples);
     if(!rest.empty()){
-        compact(li+1, slot, rest);
+        compact(level+1, slot, rest);
     }
 
     return 0;
