@@ -6,14 +6,16 @@
 #include "skiplist.h"
 
 class memtable{
-    skiplist dict;
+    skiplist table_;
+    int size_;
 public:
     memtable():
-        dict(10, 16){
+        table_(10, 16),
+        size_(0){
     }
 
     int get(const std::string &key, std::string &val){
-        node *res = dict.search(key);
+        node *res = table_.search(key);
         if(res==nullptr){
             return -1;
         }
@@ -22,7 +24,8 @@ public:
     }
 
     int put(const std::string &key, const std::string &val, const int flag=0){
-        dict.insert(key, val, flag);
+        size_ += key.size() + val.size() + sizeof(int)*4;
+        table_.insert(key, val, flag);
         return 0;
     }
 
@@ -31,11 +34,15 @@ public:
     }
 
     int size(){
-        return dict.size();
+        return size_;
+    }
+
+    void clear(){
+        table_.clear();
     }
 
     int scan(std::function<int(const std::string, const std::string, int)> visit){
-        for(skiplist::iterator it = dict.begin(); it!=dict.end(); ++it){
+        for(skiplist::iterator it = table_.begin(); it!=table_.end(); ++it){
             node * p = *it;
             visit(p->key, p->val, p->flag);
         }

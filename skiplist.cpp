@@ -50,6 +50,17 @@ node *skiplist::insert(const std::string &k, const std::string &v, const int fla
 }
 
 
+void skiplist::clear(){
+    node *cur = head;
+    while(cur->forwards[0]!=nil){
+        node *tmp = cur;
+        cur = cur->forwards[0];
+        delete tmp;
+    }
+    head->forwards[0] = nil;
+}
+
+
 void skiplist::print(){
     std::cout << "level:" << this->height << std::endl;
     for(int i=this->height-1; i>=0; --i){

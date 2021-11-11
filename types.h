@@ -3,33 +3,33 @@
 
 class kvtuple{
 public:
-    kvtuple(const char *key, const char *val, int f):
-        key(key),
-        val(val),
-        flag(f){
+    kvtuple():
+        ckey(nullptr),
+        cval(nullptr),
+        flag(0){
     }
 
-    kvtuple(const std::string &key, const std::string &val, int f):
-        key(key),
-        val(val),
+    kvtuple(char *k, char *v, int f):
+        ckey(k),
+        cval(v),
         flag(f){
     }
 
     kvtuple(const kvtuple &t):
-        key(t.key),
-        val(t.val),
+        ckey(t.ckey),
+        cval(t.cval),
         flag(t.flag){
     }
 
     kvtuple & operator=(const kvtuple &t){
-        key = t.key;
-        val = t.val;
+        ckey = t.ckey;
+        cval = t.cval;
         flag = t.flag;
         return *this;
     }
 
-    std::string key;
-    std::string val;
+    char *ckey;
+    char *cval;
     int flag;
 };
 

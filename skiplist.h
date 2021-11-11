@@ -87,6 +87,12 @@ public:
         }
     }
 
+    ~skiplist(){
+        clear();
+        delete head;
+        delete nil;
+    }
+
     iterator begin(){
         iterator it;
         it.ptr = head->next();
@@ -106,6 +112,8 @@ public:
     node *insert(const std::string &k, const std::string &v, const int flag=0);
 
     void print();
+
+    void clear();
 };
 
 

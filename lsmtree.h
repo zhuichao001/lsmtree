@@ -5,15 +5,19 @@
 #include <atomic>
 #include <algorithm>
 #include <mutex>
+#include <math.h>
 #include "memtable.h"
 #include "sstable.h"
 #include "primarysst.h"
 #include "tamper.h"
+#include "wbatch.h"
+#include "snapshot.h"
 
 typedef std::pair<std::string, std::string> kvpair;
 
-const int MUTABLE_LIMIT = 1024;
-const int TIER_PRI_COUNT = 32;
+const int MAX_LEVELS = 8;
+const int MUTABLE_LIMIT = 2<<20; //2MB
+const int TIER_PRI_COUNT = 8;
 const int TIER_SST_COUNT(int level);
 
 class lsmtree{
@@ -21,11 +25,9 @@ class lsmtree{
     memtable *immutab;
     std::mutex mux;
 
-    std::vector<primarysst*> primarys; //level 0
-    std::vector<std::vector<sstable*> > levels; //level 1+
+    std::vector<basetable*> levels[MAX_LEVELS];
 
     //serial number
-    int prinumber;
     int sstnumber;
 
     char pripath[128];
@@ -39,13 +41,13 @@ class lsmtree{
     }//leve 1+'s max size
 
     int sweep();
-
-    int compact(int li, int slot, std::vector<kvtuple> &income);
+    int minor_compact();
+    int major_compact(int ln);
+    int select_overlap(const int ln, std::vector<basetable*> &from, std::vector<basetable*> &to);
 
 public:
     lsmtree():
         immutab(nullptr),
-        prinumber(0),
         sstnumber(0),
         verbase(0){
         mutab = new memtable;
@@ -64,11 +66,17 @@ public:
 
     int open(const char *basedir);
 
+    int del(const std::string &key);
+
     int get(const std::string &key, std::string &val);
 
     int put(const std::string &key, const std::string &val);
 
-    int del(const std::string &key);
+    int write(const wbatch &updates);
+
+    snapshot * getsnapshot();
+
+    int releasesnapshot();
 };
 
 #endif
