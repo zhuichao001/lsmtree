@@ -34,7 +34,7 @@ int sstable::load(const char *path){
         const int code   = meta[0];
         const int offset = meta[1];
         const int len    = meta[2];
-        const int flag   = meta[3]; //TODO look del_flag
+        const int flag   = meta[3];
         idxoffset = pos;
         if(code==0 && offset==0){
             break;

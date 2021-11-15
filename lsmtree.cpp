@@ -69,7 +69,7 @@ int lsmtree::get(const std::string &key, std::string &val){
 }
 
 int lsmtree::put(const std::string &key, const std::string &val){
-    ++verbase;
+    ++verno;
     if(mutab->put(key, val)<0){
         return -1;
     }
@@ -91,8 +91,8 @@ int lsmtree::put(const std::string &key, const std::string &val){
     return 0;
 }
 
-int lsmtree::del(const std::string &key){ //TODO
-    ++verbase;
+int lsmtree::del(const std::string &key){
+    ++verno;
     return mutab->del(key);
 }
 

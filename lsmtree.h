@@ -33,7 +33,7 @@ class lsmtree{
     char pripath[128];
     char sstpath[128];
 
-    std::atomic<std::uint64_t> verbase;
+    std::atomic<std::uint64_t> verno;
     tamper *tamp; //sweep data from immutable to sst
 
     const int sstlimit(const int li){ 
@@ -49,7 +49,7 @@ public:
     lsmtree():
         immutab(nullptr),
         sstnumber(0),
-        verbase(0){
+        verno(0){
         mutab = new memtable;
         tamp = new tamper(std::bind(&lsmtree::sweep, this)); //TODO:multiple threads
     }
@@ -72,7 +72,7 @@ public:
 
     int put(const std::string &key, const std::string &val);
 
-    int write(const wbatch &updates);
+    int write(const wbatch &bat);
 
     snapshot * getsnapshot();
 
