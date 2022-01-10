@@ -34,7 +34,7 @@ int lsmtree::open(const char *basedir){
     }
 
     for(int i=0; i<MAX_LEVELS; ++i){
-        std::sort(levels[i].begin(), levels[i].end(), [] (const basetable *a, const basetable *b) -> bool{ 
+        std::sort(levels[i].begin(), levels[i].end(), [] (const basetable *a, const basetable *b) { 
                 return a->smallest < b->smallest; });
     }
     return 0;
@@ -50,11 +50,16 @@ int lsmtree::get(const std::string &key, std::string &val){
     }
 
     for(int i=0; i<MAX_LEVELS; ++i){
-        for(int j=0; j<levels[i].size(); ++j){
-            if(levels[i][j]->get(key, val)==0){
-                return 0;
-            }
+        std::vector<basetable*>::iterator it = std::lower_bound(levels[i].begin(), levels[i].end(), key, [](const basetable *b, const std::string &k) {
+                return b->smallest < k;
+                });
+        if(it==levels[i].end()){
+            continue;
         }
+        if((*it)->get(key,val)==0){
+            return 0;
+        }
+        break;
     }
     return -1;
 }
