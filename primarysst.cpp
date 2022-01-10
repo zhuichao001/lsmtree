@@ -33,7 +33,7 @@ primarysst::~primarysst(){
 
 int primarysst::create(const char *path){
     this->path = path;
-    fd = ::open(path, O_RDWR | O_CREAT , 0664);
+    int fd = ::open(path, O_RDWR | O_CREAT , 0664);
     if(fd<0) {
         fprintf(stderr, "open file error: %s\n", strerror(errno));
         ::close(fd);
@@ -54,7 +54,7 @@ int primarysst::create(const char *path){
 
 int primarysst::load(const char *path){
     this->path = path;
-    fd = ::open(path, O_RDWR, 0664);
+    int fd = ::open(path, O_RDWR, 0664);
     if(fd<0) {
         fprintf(stderr, "open file error: %s\n", strerror(errno));
         ::close(fd);
@@ -148,13 +148,7 @@ int primarysst::scan(std::function<int(const char*, const char*, int)> func){
     return 0;
 }
 
-int primarysst::release(){
-    ::close(fd);
-    return 0;
-}
-
 int primarysst::remove(){
-    ::close(fd);
     ::remove(path.c_str());
     return 0;
 }
@@ -164,19 +158,15 @@ int primarysst::peek(int idxoffset, kvtuple &record) {
         return -1;
     }
 
-    int meta[4];
-    pread(fd, meta, sizeof(meta), idxoffset);
-    const int code = *(int*)(mem+idxoffset);
-    const int offset = *(int*)(mem+idxoffset+sizeof(int));
-    const int datlen = *(int*)(mem+idxoffset+sizeof(int)*2);
-    const int flag = *(int*)(mem+idxoffset+sizeof(int)*3);
+    int meta[4]; //<hashcode, datoffset, datlen, flag>
+    memcpy(meta, mem+idxoffset, sizeof(int)*4);
 
-    if(code==0 && offset==0 && datlen==0 && record.flag==0){
+    if(meta[0]==0 && meta[1]==0 && meta[2]==0 && meta[3]==0){
         return -1;
     }
 
-    record.flag   = flag;
-    loadkv(mem+offset, &record.ckey, &record.cval);
+    loadkv(mem+meta[1], &record.ckey, &record.cval);
+    record.flag   = meta[3];
     return 0;
 }
 

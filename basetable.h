@@ -12,22 +12,23 @@ const int SST_LIMIT = 2<<20; //default sst size:2MB
 class basetable{
 public:
     int level;
+
     std::string path;
-    int fd;
+
     int idxoffset;
     int datoffset;
 
-    enum{COMPLETE, COMPACTING};
+    enum{NORMAL, COMPACTING};
     int state;
+
     std::string smallest;
     std::string biggest;
 
     basetable():
         level(0),
-        fd(-1),
         idxoffset(0),
         datoffset(SST_LIMIT),
-        state(COMPLETE),
+        state(NORMAL),
         smallest(64, '\xff'),
         biggest(""){
     }
@@ -43,10 +44,10 @@ public:
     virtual int peek(int idxoffset, kvtuple &record) = 0;
 
     class iterator{
-    public:
         basetable *table;
         int idxoffset;
-
+        friend class basetable;
+    public:
         bool valid(){
             return idxoffset < table->idxoffset;
         }
@@ -88,7 +89,8 @@ public:
     }
 
     static bool compare(const iterator &a, const iterator &b){
-        kvtuple kva = *a;
+        //load from disk before compare
+        kvtuple kva = *a; 
         kvtuple kvb = *b;
         return strcmp(kva.ckey, kvb.ckey) <=0;
     }

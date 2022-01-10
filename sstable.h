@@ -20,6 +20,7 @@
 
 
 class sstable: public basetable{
+    int fd;
     std::multimap<int, int> codemap; //hashcode => datoffset
 public:
     sstable(const int lev);
