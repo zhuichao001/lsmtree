@@ -50,9 +50,8 @@ int lsmtree::get(const std::string &key, std::string &val){
     }
 
     for(int i=0; i<MAX_LEVELS; ++i){
-        std::vector<basetable*>::iterator it = std::lower_bound(levels[i].begin(), levels[i].end(), key, [](const basetable *b, const std::string &k) {
-                return b->smallest < k;
-                });
+        std::vector<basetable*>::iterator it = std::lower_bound(levels[i].begin(), levels[i].end(), key, 
+                [](const basetable *b, const std::string &k) { return b->smallest < k; });
         if(it==levels[i].end()){
             continue;
         }
@@ -64,32 +63,42 @@ int lsmtree::get(const std::string &key, std::string &val){
     return -1;
 }
 
+void lsmtree::swapmutab(){
+    if(immutab!=nullptr){
+        tamp->wait();
+    }
+    std::lock_guard<std::mutex> lock(mux);
+    memtable *rabbish = immutab;  //TODO if exist other readers
+    delete rabbish;
+
+    immutab = mutab;
+    tamp->notify();
+
+    mutab = new memtable;
+}
+
 int lsmtree::put(const std::string &key, const std::string &val){
     ++verno;
-    if(mutab->put(key, val)<0){
+    if(mutab->put(key, val)<0){ //TODO pass verno
         return -1;
     }
 
     if(mutab->size() >= MUTABLE_LIMIT){
-        if(immutab!=nullptr){
-            tamp->wait();
-        }
-        std::lock_guard<std::mutex> lock(mux);
-        memtable *rabbish = immutab;
-        immutab = nullptr;
-        delete rabbish;
-
-        immutab = mutab;
-        tamp->notify();
-
-        mutab = new memtable;
+        swapmutab();
     }
     return 0;
 }
 
 int lsmtree::del(const std::string &key){
     ++verno;
-    return mutab->del(key);
+    if(mutab->del(key)<0){ //TODO pass verno
+        return -1;
+    }
+
+    if(mutab->size() >= MUTABLE_LIMIT){
+        swapmutab();
+    }
+    return 0;
 }
 
 int lsmtree::minor_compact(){

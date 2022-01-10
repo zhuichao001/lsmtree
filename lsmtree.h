@@ -40,6 +40,8 @@ class lsmtree{
         return 16 * (li<<4); 
     }//leve 1+'s max size
 
+    void swapmutab(); //swap out mutab
+
     int sweep();
     int minor_compact();
     int major_compact(int ln);
