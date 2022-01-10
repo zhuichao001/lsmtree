@@ -6,30 +6,16 @@ const int TIER_SST_COUNT(int level){
     return TIER_PRI_COUNT * pow(10, level);
 }
 
-inline static int slot(int level, const char *p){
-    if(strlen(p)<(level+1)/2){
-        return 0;
-    }
-    int idx = 0;
-    for(int i=0; i<=level; ++i){
-        if(i%2==0){
-            idx = (idx<<4) + ((p[i/2]>>4) & 0xf);
-        }else{
-            idx = (idx<<4) + (p[i/2] & 0xf);
-        }
-    }
-    return idx;
-}
-
 int lsmtree::open(const char *basedir){
     sprintf(pripath, "%s/pri/\0", basedir);
     sprintf(sstpath, "%s/sst/\0", basedir);
     if(!exist(basedir)){
         mkdir(pripath);
         mkdir(sstpath);
+        return 0;
     }
 
-    std::vector<std::string> files;
+    std::vector<std::string> files; //temporary
     ls(pripath, files);
     for(auto path: files){
         primarysst *pri = new primarysst;
@@ -38,13 +24,18 @@ int lsmtree::open(const char *basedir){
     }
 
     files.clear();
+
     ls(sstpath, files);
-    std::sort(files.begin(), files.end());
     for(auto path: files){
         int level = atoi(path.c_str()+strlen(sstpath));
         sstable *sst = new sstable(level);
         sst->load(path.c_str());
         levels[level-1].push_back(sst);
+    }
+
+    for(int i=0; i<MAX_LEVELS; ++i){
+        std::sort(levels[i].begin(), levels[i].end(), [] (const basetable *a, const basetable *b) -> bool{ 
+                return a->smallest < b->smallest; });
     }
     return 0;
 }

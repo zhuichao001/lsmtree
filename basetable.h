@@ -33,6 +33,11 @@ public:
         biggest(""){
     }
 
+    int remove(){
+        ::remove(path.c_str());
+        return 0;
+    }
+
 public:
     virtual int create(const char *path) = 0;
     virtual int load(const char *path) = 0;
@@ -40,7 +45,7 @@ public:
 
     virtual int get(const std::string &key, std::string &val) = 0;
     virtual int put(const std::string &key, const std::string &val, int flag=0) = 0;
-    virtual int scan(std::function<int(const char*, const char*, int)> func) = 0;
+    virtual int scan(std::function<int(const char* /*key*/, const char* /*val*/, int /*flag*/)> func) = 0;
     virtual int peek(int idxoffset, kvtuple &record) = 0;
 
     class iterator{

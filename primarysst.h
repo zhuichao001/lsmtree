@@ -32,8 +32,6 @@ public:
 
     int create(const char *path);
 
-    int remove();
-
     int load(const char *path);
 
     int close();

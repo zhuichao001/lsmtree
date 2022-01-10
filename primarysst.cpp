@@ -87,6 +87,8 @@ int primarysst::load(const char *path){
 }
 
 int primarysst::close(){
+    munmap(mem, SST_LIMIT);
+    mem = nullptr;
     return 0;
 }
 
@@ -148,11 +150,6 @@ int primarysst::scan(std::function<int(const char*, const char*, int)> func){
     return 0;
 }
 
-int primarysst::remove(){
-    ::remove(path.c_str());
-    return 0;
-}
-
 int primarysst::peek(int idxoffset, kvtuple &record) {
     if(idxoffset & (sizeof(int)*4-1)!=0){
         return -1;
@@ -174,7 +171,7 @@ primarysst *create_primarysst(int filenumber){
     primarysst *pri = new primarysst;
 
     char path[128];
-    sprintf(path, "data/pri/\0");
+    sprintf(path, "data/pri/\0"); //TODO
     if(!exist(path)){
         mkdir(path);
     }

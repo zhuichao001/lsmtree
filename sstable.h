@@ -22,6 +22,8 @@
 class sstable: public basetable{
     int fd;
     std::multimap<int, int> codemap; //hashcode => datoffset
+    int peek(int idxoffset, kvtuple &record) ;
+    int endindex();
 public:
     sstable(const int lev);
 
@@ -31,17 +33,13 @@ public:
 
     int close();
 
+    int reset(const std::vector<kvtuple > &tuples);
+public:
     int get(const std::string &key, std::string &val);
 
     int put(const std::string &key, const std::string &val, int flag=0);
 
-    int reset(const std::vector<kvtuple > &tuples);
-
     int scan(std::function<int(const char*, const char*, int)> func);
-
-    int peek(int idxoffset, kvtuple &record) ;
-
-    int endindex();
 };
 
 sstable *create_sst(int level, int filenumber);
