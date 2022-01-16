@@ -33,9 +33,9 @@ int lsmtree::open(const char *basedir){
         levels[level-1].push_back(sst);
     }
 
+    //sort sst in every level 
     for(int i=0; i<MAX_LEVELS; ++i){
-        std::sort(levels[i].begin(), levels[i].end(), [] (const basetable *a, const basetable *b) { 
-                return a->smallest < b->smallest; });
+        sort_sst(i);
     }
     return 0;
 }
@@ -58,7 +58,6 @@ int lsmtree::get(const std::string &key, std::string &val){
         if((*it)->get(key,val)==0){
             return 0;
         }
-        break;
     }
     return -1;
 }
@@ -102,16 +101,17 @@ int lsmtree::del(const std::string &key){
 }
 
 int lsmtree::minor_compact(){
-    primarysst *pri = create_primarysst(++sstnumber);
+    primarysst *sst = create_primarysst(++sstnumber);
 
     immutab->scan([=](const std::string &key, const std::string &val, int flag) ->int {
-        pri->put(key, val, flag);
+        sst->put(key, val, flag);
         return 0;
     });
 
     {
         std::lock_guard<std::mutex> lock(mux);
-        levels[0].push_back(pri);
+        //TODO:calculate level-n, push as down as possible
+        levels[0].push_back(sst);
         delete immutab;
         immutab = nullptr;
     }
@@ -161,26 +161,33 @@ int lsmtree::major_compact(int ln){
         }
     }
 
-    int destlevel = inputs[1].size()==0? ln+2 : ln+1;
+    int destlevel = ln+1;
     sstable *sst = create_sst(destlevel, ++sstnumber);
     levels[destlevel].push_back(sst);
 
     make_heap(vec.begin(), vec.end(), basetable::compare);
     while(!vec.empty()){
         basetable::iterator it = vec.front();
-        kvtuple t = *it;
         pop_heap(vec.begin(), vec.end());
+
+        kvtuple t = *it;
+        it.next();
+
         if(it.valid()){
             push_heap(vec.begin(), vec.end());
         }else{
-            vec.pop_back();
+            vec.pop_back(); //remove iterator
         }
 
         if(sst->put(std::string(t.ckey), std::string(t.cval), t.flag)==ERROR_SPACE_NOT_ENOUGH){
             sst = create_sst(destlevel, ++sstnumber);
             levels[destlevel].push_back(sst);
+            sst->put(std::string(t.ckey), std::string(t.cval), t.flag);
         }
     }
+
+    sort_sst(destlevel);
+    //TODO: how to release the source ssts
     return 0;
 }
 
@@ -188,15 +195,22 @@ int lsmtree::major_compact(int ln){
 int lsmtree::sweep(){
     minor_compact();
 
-    int compact_levels = 0;
+    int compact_levels = 0;   
     for(int i=0; i<MAX_LEVELS; ++i){
-        if(levels[i].size() >= TIER_PRI_COUNT){
+        if(levels[i].size() >= TIER_PRI_COUNT){ //TODO cal condition
             major_compact(i);
-            ++compact_levels;
-        }
-        if(compact_levels==2){
-            break;
+            if(++compact_levels == MAX_COMPACT_LEVELS){
+                break;
+            }
         }
     }
+    return 0;
+}
+
+snapshot * lsmtree::create_snapshot(){
+    return nullptr;
+}
+
+int lsmtree::release_snapshot(){
     return 0;
 }

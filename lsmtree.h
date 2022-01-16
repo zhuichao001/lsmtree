@@ -19,6 +19,7 @@ const int MAX_LEVELS = 8;
 const int MUTABLE_LIMIT = 2<<20; //2MB size FIXED
 const int TIER_PRI_COUNT = 8;
 const int TIER_SST_COUNT(int level);
+const int MAX_COMPACT_LEVELS = 2; //everytime compact 2 levels at most
 
 class lsmtree{
     memtable *mutab;
@@ -46,6 +47,10 @@ class lsmtree{
     int minor_compact();
     int major_compact(int ln);
     int select_overlap(const int ln, std::vector<basetable*> &from, std::vector<basetable*> &to);
+    void sort_sst(int level_idx){
+        std::sort(levels[level_idx].begin(), levels[level_idx].end(), [] (const basetable *a, const basetable *b) { 
+                return a->smallest < b->smallest; });
+    }
 
 public:
     lsmtree():
@@ -76,9 +81,9 @@ public:
 
     int write(const wbatch &bat);
 
-    snapshot * getsnapshot();
+    snapshot * create_snapshot();
 
-    int releasesnapshot();
+    int release_snapshot();
 };
 
 #endif
