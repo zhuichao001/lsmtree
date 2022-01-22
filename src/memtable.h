@@ -25,7 +25,9 @@ public:
 
     int put(const std::string &key, const std::string &val, const int flag=0){
         size_ += key.size() + val.size() + sizeof(int)*4;
-        table_.insert(key, val, flag);
+        node *neo = table_.insert(key, val, flag);
+        assert(neo!=nullptr);
+        //neo->print();
         return 0;
     }
 

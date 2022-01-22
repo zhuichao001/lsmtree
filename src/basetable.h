@@ -6,7 +6,7 @@
 #include <string>
 #include "types.h"
 
-const int SST_LIMIT = 2<<20; //default sst size:2MB
+const int SST_LIMIT = 2<<10; //default sst size:2MB
 
 
 class basetable{

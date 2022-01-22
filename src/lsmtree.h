@@ -16,7 +16,7 @@
 typedef std::pair<std::string, std::string> kvpair;
 
 const int MAX_LEVELS = 8;
-const int MUTABLE_LIMIT = 2<<20; //2MB size FIXED
+const int MUTABLE_LIMIT = 1<<20; //2MB size FIXED
 const int TIER_PRI_COUNT = 8;
 const int TIER_SST_COUNT(int level);
 const int MAX_COMPACT_LEVELS = 2; //everytime compact 2 levels at most

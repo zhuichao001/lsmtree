@@ -1,4 +1,5 @@
 #include "skiplist.h"
+#include <algorithm>
 
 
 node *skiplist::search(const std::string &k){
@@ -31,20 +32,23 @@ node *skiplist::insert(const std::string &k, const std::string &v, const int fla
         cur->forwards[0]->flag = flag;
         return cur->forwards[0];
     } else { //insert
-        ++length;
-
         const int H = this->level();
-        for(int i=this->height; i<H; ++i) {
-            updates[i] = this->head;
-        }
-
-        this->height = H>this->height ? H : this->height;
-        
         node * neo = new node(H, k, v, flag);
-        for(int i=0; i<H; ++i){
+        if(neo==nullptr){
+            fprintf(stderr, "can't malloc when insert");
+            return nullptr;
+        }
+        for(int i=0; i<std::min(this->height, H); ++i){
             neo->forwards[i] = updates[i]->forwards[i];
             updates[i]->forwards[i] = neo;
         }
+
+        for(int i=this->height; i<H; ++i) {
+            neo->forwards[i] = nil;
+            head->forwards[i] = neo;
+        }
+        this->height = std::max(this->height, H);
+        ++length;
         return neo;
     }
 }

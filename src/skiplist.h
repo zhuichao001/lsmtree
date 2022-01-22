@@ -4,6 +4,7 @@
 #include <stddef.h>
 #include <stdlib.h>
 #include <limits.h>
+#include <assert.h>
 #include <iostream>
 #include <string>
 
@@ -16,24 +17,34 @@ class skiplist;
 class node {
     friend class skiplist;
     int height;
-    node **forwards;
+    node **forwards;  // next for i'th layer
 public:
     std::string key;
     std::string val;
     int flag;
 
     node(const int level, const std::string &k, const std::string &v="", const int flagcode=0):
+        height(level),
         key(k),
         val(v),
         flag(flagcode){
+        fprintf(stderr, "    new level:%d, key:%s, val:%s\n", level, k.c_str(), v.c_str());
         forwards = new node*[level];
-        for(int i=0; i<level; ++i){
+        assert(forwards!=nullptr);
+        for(int i=0; i<height; ++i){
             forwards[i] = nullptr;
         }
     }
 
     node *next(){
         return forwards[0];
+    }
+
+    void print(){
+        fprintf(stderr, "[node] key:%s, val:%s", key.c_str(), val.c_str());
+        for(int i=0; i<height; ++i){
+            fprintf(stderr, "    i:%d, next:%p\n", i, forwards[i]);
+        }
     }
 };
 
@@ -56,7 +67,6 @@ class skiplist {
     }
 
 public:
-    class iterator;
     class iterator{
     public:
         node *ptr;
@@ -81,7 +91,7 @@ public:
         length = 0;
         height = 1;
         head = new node(MAXHEIGHT, "");
-        nil = new node(MAXHEIGHT, std::string(2048, '\xff')); 
+        nil = new node(MAXHEIGHT, std::string(256, '\xff')); 
         for(int i=0; i<MAXHEIGHT; ++i){
             head->forwards[i] = nil;
         }

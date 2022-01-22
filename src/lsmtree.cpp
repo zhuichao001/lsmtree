@@ -63,10 +63,12 @@ int lsmtree::get(const std::string &key, std::string &val){
 }
 
 void lsmtree::swapmutab(){
+    std::lock_guard<std::mutex> lock(mux);
     if(immutab!=nullptr){
         tamp->wait();
     }
-    std::lock_guard<std::mutex> lock(mux);
+    fprintf(stderr, "swap mutable memory table\n");
+
     memtable *rabbish = immutab;  //TODO if exist other readers
     delete rabbish;
 
@@ -84,6 +86,7 @@ int lsmtree::put(const std::string &key, const std::string &val){
 
     if(mutab->size() >= MUTABLE_LIMIT){
         swapmutab();
+        sweep();
     }
     return 0;
 }
@@ -101,8 +104,12 @@ int lsmtree::del(const std::string &key){
 }
 
 int lsmtree::minor_compact(){
-    primarysst *sst = create_primarysst(++sstnumber);
+    if(immutab==nullptr){
+        fprintf(stderr, "error, when lsmtree::minor_compact immutab is null");
+        return -1;
+    }
 
+    primarysst *sst = create_primarysst(++sstnumber);
     immutab->scan([=](const std::string &key, const std::string &val, int flag) ->int {
         sst->put(key, val, flag);
         return 0;
