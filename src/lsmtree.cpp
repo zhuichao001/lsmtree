@@ -67,15 +67,13 @@ void lsmtree::swapmutab(){
     if(immutab!=nullptr){
         tamp->wait();
     }
+
     fprintf(stderr, "swap mutable memory table\n");
 
-    memtable *rabbish = immutab;  //TODO if exist other readers
-    delete rabbish;
-
     immutab = mutab;
-    tamp->notify();
-
     mutab = new memtable;
+
+    tamp->notify();
 }
 
 int lsmtree::put(const std::string &key, const std::string &val){
@@ -86,7 +84,6 @@ int lsmtree::put(const std::string &key, const std::string &val){
 
     if(mutab->size() >= MUTABLE_LIMIT){
         swapmutab();
-        sweep();
     }
     return 0;
 }

@@ -2,7 +2,7 @@
 #include "lsmtree.h"
 
 void test0(){
-    const int COUNT = 1000000;
+    const int COUNT = 100000;
     lsmtree db;
     db.open("./data");
     for(int i=0; i<COUNT; ++i){

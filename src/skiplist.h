@@ -28,12 +28,17 @@ public:
         key(k),
         val(v),
         flag(flagcode){
+        assert(level>0);
         fprintf(stderr, "    new level:%d, key:%s, val:%s\n", level, k.c_str(), v.c_str());
-        forwards = new node*[level];
+        forwards = new node*[height];
         assert(forwards!=nullptr);
         for(int i=0; i<height; ++i){
             forwards[i] = nullptr;
         }
+    }
+    
+    ~node(){
+        delete []forwards;
     }
 
     node *next(){
@@ -99,8 +104,8 @@ public:
 
     ~skiplist(){
         clear();
-        delete head;
         delete nil;
+        delete head;
     }
 
     iterator begin(){
