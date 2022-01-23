@@ -42,12 +42,16 @@ int lsmtree::open(const char *basedir){
 
 int lsmtree::get(const std::string &key, std::string &val){
     if(mutab->get(key, val)==0){
+        pthread_rwlock_unlock(&lock);
         return 0;
     }
 
+    pthread_rwlock_rdlock(&lock);
     if(immutab!=nullptr && immutab->get(key, val)==0){
+        pthread_rwlock_unlock(&lock);
         return 0;
     }
+    pthread_rwlock_unlock(&lock);
 
     for(int i=0; i<MAX_LEVELS; ++i){
         std::vector<basetable*>::iterator it = std::lower_bound(levels[i].begin(), levels[i].end(), key, 
@@ -63,7 +67,6 @@ int lsmtree::get(const std::string &key, std::string &val){
 }
 
 void lsmtree::swapmutab(){
-    std::lock_guard<std::mutex> lock(mux);
     if(immutab!=nullptr){
         tamp->wait();
     }
@@ -79,6 +82,7 @@ void lsmtree::swapmutab(){
 int lsmtree::put(const std::string &key, const std::string &val){
     ++verno;
     if(mutab->put(key, val)<0){ //TODO pass verno
+        pthread_rwlock_unlock(&lock);
         return -1;
     }
 
@@ -112,13 +116,16 @@ int lsmtree::minor_compact(){
         return 0;
     });
 
+    //TODO:calculate level-n, push down as low as possible
+    levels[0].push_back(sst);
+
     {
-        std::lock_guard<std::mutex> lock(mux);
-        //TODO:calculate level-n, push as down as possible
-        levels[0].push_back(sst);
+        pthread_rwlock_wrlock(&lock);
         delete immutab;
         immutab = nullptr;
+        pthread_rwlock_unlock(&lock);
     }
+
     return 0;
 }
 

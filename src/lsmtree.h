@@ -5,7 +5,9 @@
 #include <atomic>
 #include <algorithm>
 #include <mutex>
+#include <string>
 #include <math.h>
+#include <pthread.h>
 #include "memtable.h"
 #include "sstable.h"
 #include "primarysst.h"
@@ -24,7 +26,7 @@ const int MAX_COMPACT_LEVELS = 2; //everytime compact 2 levels at most
 class lsmtree{
     memtable *mutab;
     memtable *immutab;
-    std::mutex mux;
+    pthread_rwlock_t lock;
 
     std::vector<basetable*> levels[MAX_LEVELS];
 
@@ -57,6 +59,11 @@ public:
         immutab(nullptr),
         sstnumber(0),
         verno(0){
+        pthread_rwlockattr_t attr;
+        pthread_rwlockattr_init(&attr);
+        pthread_rwlockattr_setkind_np(&attr, PTHREAD_RWLOCK_PREFER_WRITER_NONRECURSIVE_NP);
+        pthread_rwlock_init(&lock, &attr);
+
         mutab = new memtable;
         tamp = new tamper(std::bind(&lsmtree::sweep, this)); //TODO:multiple threads
     }
