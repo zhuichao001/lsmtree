@@ -52,6 +52,8 @@ class lsmtree{
 
     int ensure_space();
 
+    void schedule_compaction();
+
 public:
     lsmtree():
         immutab(nullptr),

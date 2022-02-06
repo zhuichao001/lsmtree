@@ -2,6 +2,7 @@
 #define _LSMTREE_VERSION_H_
 
 #include <math.h>
+#include <algorithm>
 #include <set>
 #include "options.h"
 #include "types.h"
@@ -62,8 +63,8 @@ private:
     std::set<basetable*> delfiles;
     std::vector<basetable*> addfiles[MAX_LEVELS];
 public:
-    void add(basetable *t){
-        addfiles[t->getlevel()].push_back(t);
+    void add(int level, basetable *t){
+        addfiles[level].push_back(t);
     }
 
     void remove(basetable *t){
@@ -102,8 +103,9 @@ public:
         return last_sequence_;
     }
 
-    void add_sequence(int cnt){
+    int add_sequence(int cnt){
         last_sequence_ += cnt;
+        return last_sequence_;
     }
 
     version *current(){

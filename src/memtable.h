@@ -5,16 +5,27 @@
 #include <string.h>
 #include "skiplist.h"
 
+const int MAX_MEMTAB_SIZE = 2<<20;
 const int SKIPLIST_MAX_HEIGHT = 10;
 const int BRANCH_SIZE = 16;
 
 class memtable{
     skiplist table_;
     int size_;
+    int refnum;
 public:
     memtable():
         table_(SKIPLIST_MAX_HEIGHT, BRANCH_SIZE),
-        size_(0){
+        size_(0),
+        refnum(0){
+    }
+
+    void ref(){
+        ++refnum;
+    }
+
+    void unref(){
+        --refnum;
     }
 
     int get(const uint64_t seqno, const std::string &key, std::string &val){
@@ -42,7 +53,7 @@ public:
     }
 
     int del(const uint64_t seqno, const std::string &key){
-        return put(key, "", seqno, FLAG_DEL);
+        return put(seqno, key, "", FLAG_DEL);
     }
 
     int size(){
@@ -53,10 +64,10 @@ public:
         table_.clear();
     }
 
-    int scan(const uint64_t seqno, std::function<int(const std::string, const std::string, int)> visit){
+    int scan(const uint64_t seqno, std::function<int(uint64_t seqno, const std::string, const std::string, int)> visit){
         for(skiplist::iterator it = table_.begin(); it!=table_.end(); ++it){
             node * p = *it;
-            visit(p->key, p->val, seqno, p->flag);
+            visit(seqno, p->key, p->val, p->value_type);
         }
         return 0;
     }

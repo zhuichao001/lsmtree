@@ -7,6 +7,7 @@
 #include <semaphore.h>
 #include <pthread.h>
 #include <functional> 
+#include <vector>
 #include <memory>
 #include <thread>
 #include "basetable.h"
@@ -16,21 +17,26 @@ class version;
 
 class compaction{
 public:
-    std::vector<basetable *> inputs[2];
+    std::vector<basetable *> inputs_[2];
     version *ver;
-    int level;
+    int level_;
 
     compaction(version *cur, int lev):
         ver(cur),
-        level(lev){
+        level_(lev){
     }
 
     basetable *input(int w, int idx){
-        return inputs[w][idx];
+        return inputs_[w][idx];
     }
 
     //TODO: optimize
     void settle_inputs();
+
+    int level(){
+        return level_;
+    }
+
 };
 
 #endif

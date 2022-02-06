@@ -42,10 +42,11 @@ public:
         return shot;
     }
 
-    void destroy(const snapshot *shot){
+    int destroy(const snapshot *shot){
         shot->prev_->next_ = shot->next_;
         shot->next_->prev_ = shot->prev_;
         delete shot;
+        return 0;
     }
 
     bool empty(){ return head_.next_==&head_; }

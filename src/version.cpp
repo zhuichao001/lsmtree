@@ -83,18 +83,18 @@ compaction *versionset::plan_compact(){
         for(int i=0; i < current_->ssts[level].size(); ++i){
             basetable *t = current_->ssts[level][i];
             if(campact_poles_[i].empty() || t->smallest >= campact_poles_[i]){
-                c->inputs[0].push_back(t);
+                c->inputs_[0].push_back(t);
                 break;
             }
         }
 
-        if(c->inputs[0].empty()){ //wrap arround to begin
+        if(c->inputs_[0].empty()){ //wrap arround to begin
             basetable *t = current_->ssts[level][0];
-            c->inputs[0].push_back(t);
+            c->inputs_[0].push_back(t);
         }
     } else if(seek_too_many) {
         c = new compaction(current_, current_->hot_sst->getlevel());
-        c->inputs[0].push_back(current_->hot_sst);
+        c->inputs_[0].push_back(current_->hot_sst);
     } else {
         return nullptr;
     }

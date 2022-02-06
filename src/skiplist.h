@@ -18,13 +18,13 @@ class skiplist;
 
 class node {
     friend class skiplist;
-    int height;
-    node **forwards;  // next for i'th layer
 public:
     std::string key;
     std::string val;
     uint64_t sequence_number;
     uint8_t value_type;
+    int height;
+    node **forwards;  // next for i'th layer
 
     node(const int level, const std::string &k, const std::string &v="", const uint64_t seqno=0, const int flagcode=0):
         height(level),

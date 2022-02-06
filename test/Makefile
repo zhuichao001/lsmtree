@@ -6,10 +6,12 @@ all:
 		../src/skiplist.cpp \
 		../src/primarysst.cpp \
 		../src/sstable.cpp \
+		../src/compaction.cpp \
+		../src/version.cpp \
 		../src/lsmtree.cpp \
 		./main.cpp \
 		-lpthread \
-		-std=c++11 \
+		-std=c++14 \
 		-I../src 
 clean:
 	rm -rf run data/
