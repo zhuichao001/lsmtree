@@ -2,11 +2,14 @@
 #include "sstable.h"
 #include<algorithm>
 
+
+thread_pool_t backstage(1);
+
 const int TIER_SST_COUNT(int level){
     return TIER_PRI_COUNT * pow(10, level);
 }
 
-int lsmtree::open(const char *basedir){
+int lsmtree::open(const options *opt, const char *basedir){
     sprintf(pripath, "%s/pri/\0", basedir);
     sprintf(sstpath, "%s/sst/\0", basedir);
     if(!exist(basedir)){
@@ -14,6 +17,9 @@ int lsmtree::open(const char *basedir){
         mkdir(sstpath);
         return 0;
     }
+
+    versions = new versionset;
+    /*
 
     std::vector<std::string> files; //temporary
     ls(pripath, files);
@@ -37,70 +43,91 @@ int lsmtree::open(const char *basedir){
     for(int i=0; i<MAX_LEVELS; ++i){
         sort_sst(i);
     }
+    */
     return 0;
 }
 
-int lsmtree::get(const std::string &key, std::string &val){
-    if(mutab->get(key, val)==0){
-        pthread_rwlock_unlock(&lock);
-        return 0;
+int lsmtree::get(const roption &opt, const std::string &key, std::string &val){
+    int seqno = (opt->snap==nullptr)? versions->last_sequence():opt->snap->sequence();
+    mutab->ref();
+    if(immutab!=nullptr){
+        mutab->ref();
     }
 
-    pthread_rwlock_rdlock(&lock);
-    if(immutab!=nullptr && immutab->get(key, val)==0){
-        pthread_rwlock_unlock(&lock);
+    if(mutab->get(seqno, key, val)==0){
         return 0;
     }
-    pthread_rwlock_unlock(&lock);
+    mutab->unref();
 
-    for(int i=0; i<MAX_LEVELS; ++i){
-        std::vector<basetable*>::iterator it = std::lower_bound(levels[i].begin(), levels[i].end(), key, 
-                [](const basetable *b, const std::string &k) { return b->smallest < k; });
-        if(it==levels[i].end()){
-            continue;
-        }
-        if((*it)->get(key,val)==0){
+    if(immutab!=nullptr){ 
+        if(immutab->get(seqno, key, val)==0){
             return 0;
         }
+        immutab->unref();
     }
-    return -1;
+
+    version *cur = versions->current();
+    return cur->get(seqno, key, val);
 }
 
-void lsmtree::swapmutab(){
+void lsmtree::schedule_compaction(){
     if(immutab!=nullptr){
-        tamp->wait();
+        backstage.post(lsmtree::minor_compact, this);
+        return;
     }
 
-    fprintf(stderr, "swap mutable memory table\n");
+    //TODO: deal manual compaction
 
-    immutab = mutab;
-    mutab = new memtable;
-
-    tamp->notify();
+    if(versions->need_compact()){
+        backstage.post(lsmtree::major_compact, this);
+        return;
+    }
 }
 
-int lsmtree::put(const std::string &key, const std::string &val){
-    ++verno;
-    if(mutab->put(key, val)<0){ //TODO pass verno
-        pthread_rwlock_unlock(&lock);
-        return -1;
+int lsmtree::ensure_space(){
+    if(mutab->size() < MEMTAB_SIZE){
+        return 0;
     }
 
-    if(mutab->size() >= MUTABLE_LIMIT){
-        swapmutab();
+    std::unique_lock<std::mutex> lock{mutex};
+    if (immutab!=nullptr) {
+        level0_cv.wait(lock);
+    } else if(mutab->size() >= SST_LIMIT){
+        //TODO log file
+        immutab = mutab;
+        mutab = new memtable;
+        mutab->ref();
+        schedule_compaction();
     }
+    mutex.unlock()
     return 0;
 }
 
-int lsmtree::del(const std::string &key){
-    ++verno;
-    if(mutab->del(key)<0){ //TODO pass verno
+int lsmtree::put(const woptions &opt, const std::string &key, const std::string &val){
+    if(ensure_space()){
+        fprintf(stderr, "shift space error\n");
         return -1;
     }
 
-    if(mutab->size() >= MUTABLE_LIMIT){
-        swapmutab();
+    int seqno = versions->add_sequence(1);
+    if(mutab->put(seqno, key, val)<0){ //TODO: USE Writebatch
+        return -1;
     }
+
+    return 0;
+}
+
+int lsmtree::del(const woptions &opt, const std::string &key){
+    if(ensure_space()){
+        fprintf(stderr, "shift space error\n");
+        return -1;
+    }
+
+    int seqno = versions->add_sequence(1);
+    if(mutab->del(seqno, key)<0){
+        return -1;
+    }
+
     return 0;
 }
 
@@ -110,14 +137,19 @@ int lsmtree::minor_compact(){
         return -1;
     }
 
-    primarysst *sst = create_primarysst(++sstnumber);
+    primarysst *sst = create_primarysst(versions->next_fnumber());
     immutab->scan([=](const std::string &key, const std::string &val, int flag) ->int {
         sst->put(key, val, flag);
         return 0;
     });
 
-    //TODO:calculate level-n, push down as low as possible
-    levels[0].push_back(sst);
+    versionedit edit;
+    edit.add(sst);
+
+    version *cur = versions->current();
+    cur->ref();
+    versions->apply(&edit);
+    cur->unref();
 
     {
         pthread_rwlock_wrlock(&lock);
@@ -129,6 +161,7 @@ int lsmtree::minor_compact(){
     return 0;
 }
 
+/*
 int lsmtree::select_overlap(const int ln, std::vector<basetable*> &from, std::vector<basetable*> &to){
     int n = 0;
     for(int j=0; j<levels[ln].size(); ++j){
@@ -150,78 +183,60 @@ int lsmtree::select_overlap(const int ln, std::vector<basetable*> &from, std::ve
     }
     return n;
 }
+*/
 
-int lsmtree::major_compact(int ln){
-    std::vector<basetable*> inputs[2];
-
-    levels[ln][0]->state = basetable::COMPACTING;
-    inputs[0].push_back(levels[0][0]);
-    int lev = 1;
-    while(select_overlap(lev, inputs[1-lev], inputs[lev])>0){
-        lev = 1-lev;
+void lsmtree::major_compact(){
+    compaction *c = versions->plan_compaction();
+    if(c==nullptr){ //do nothing
+        return;
     }
 
-    std::vector<basetable::iterator> vec; //collect all iterators
-    for(int i=0; i<2; ++i){
-        for(int j=0; j<inputs[i].size(); ++j){
-            basetable::iterator it = inputs[i][j]->begin();
-            if(!it.valid()){
-                continue;
+    versionedit edit;
+
+    if(c->independent()){
+        sstable *t = c->input(0, 0);
+        edit.add(c->level()+1, t);
+        edit.remove(c->level(), t);
+    } else {
+        std::vector<basetable::iterator> vec; //collect all iterators
+        for(int i=0; i<2; ++i){
+            for(int j=0; j<c->inputs_[i].size(); ++j){
+                edit.remove(c->inputs_[i][j]->getlevel(), c->inputs_[i][j]);
+                basetable::iterator it = c->inputs_[i][j]->begin();
+                vec.push_back(it);
             }
-            vec.push_back(it);
         }
-    }
-
-    int destlevel = ln+1;
-    sstable *sst = create_sst(destlevel, ++sstnumber);
-    levels[destlevel].push_back(sst);
-
-    make_heap(vec.begin(), vec.end(), basetable::compare);
-    while(!vec.empty()){
-        basetable::iterator it = vec.front();
-        pop_heap(vec.begin(), vec.end());
-
-        kvtuple t = *it;
-        it.next();
-
-        if(it.valid()){
-            push_heap(vec.begin(), vec.end());
-        }else{
-            vec.pop_back(); //remove iterator
-        }
-
-        if(sst->put(std::string(t.ckey), std::string(t.cval), t.flag)==ERROR_SPACE_NOT_ENOUGH){
-            sst = create_sst(destlevel, ++sstnumber);
-            levels[destlevel].push_back(sst);
-            sst->put(std::string(t.ckey), std::string(t.cval), t.flag);
-        }
-    }
-
-    sort_sst(destlevel);
-    //TODO: how to release the source ssts
-    return 0;
-}
-
-//transfer hot-data in immutable down to sst
-int lsmtree::sweep(){
-    minor_compact();
-
-    int compact_levels = 0;   
-    for(int i=0; i<MAX_LEVELS; ++i){
-        if(levels[i].size() >= TIER_PRI_COUNT){ //TODO cal condition
-            major_compact(i);
-            if(++compact_levels == MAX_COMPACT_LEVELS){
-                break;
+        int destlevel = c->level();
+        sstable *sst = create_sst(destlevel, ++sstnumber);
+        edit.add(destlevel, sst);
+        make_heap(vec.begin(), vec.end(), basetable::compare);
+        while(!vec.empty()){
+            basetable::iterator it = vec.front();
+            pop_heap(vec.begin(), vec.end());
+            kvtuple t = *it;
+            it.next();
+            if(it.valid()){
+                push_heap(vec.begin(), vec.end());
+            }else{
+                vec.pop_back(); //remove iterator
+            }
+            if(sst->put(std::string(t.ckey), std::string(t.cval), t.flag)==ERROR_SPACE_NOT_ENOUGH){
+                sst = create_sst(destlevel, ++sstnumber);
+                edit.add(destlevel, sst);
+                sst->put(std::string(t.ckey), std::string(t.cval), t.flag);
             }
         }
     }
+    versions->apply(c, &edit);
+    versions->current()->calculate();
+    schedule_compaction();
     return 0;
 }
 
-snapshot * lsmtree::create_snapshot(){
-    return nullptr;
+snapshot * lsmtree::get_snapshot(){
+    return snapshots.create(versions->last_sequence());
 }
 
-int lsmtree::release_snapshot(){
-    return 0;
+int lsmtree::release_snapshot(snapshot *snap){
+    return snapshots.destroy(snap);
 }

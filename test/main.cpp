@@ -4,7 +4,10 @@
 void test0(){
     const int COUNT = 100000;
     lsmtree db;
-    db.open("./data");
+    woptions wopt;
+    roptions ropt;
+    options opt;
+    db.open(&opt, "./data");
     for(int i=0; i<COUNT; ++i){
         char k[128];
         char v[128];
@@ -12,7 +15,7 @@ void test0(){
         sprintf(v, "val_%d", i);
 
         //std::cout << " insert " << k << ", hashcode:" << hash(k, strlen(k)) <<std::endl;
-        db.put(k, v);
+        db.put(wopt, k, v);
     }
 
     std::cout << " insert done !!!"<<std::endl;
@@ -25,7 +28,7 @@ void test0(){
         sprintf(v, "val_%d", i);
 
         //std::cout << " query " << k << ", hashcode:" << hash(k, strlen(k)) <<std::endl;
-        db.get(k,  val);
+        db.get(ropt, k, val);
         if(std::string(v)==val){
             std::cerr<< "yes same:" <<k <<std::endl;
         }else{

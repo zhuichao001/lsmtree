@@ -6,10 +6,12 @@
 #include <limits.h>
 #include <assert.h>
 #include <iostream>
+#include <atomic>
 #include <string>
 
 enum{
-    FLAG_DEL = -1,
+    FLAG_VAL = 1,
+    FLAG_DEL = 1,
 };
 
 class skiplist;
@@ -21,16 +23,18 @@ class node {
 public:
     std::string key;
     std::string val;
-    int flag;
+    uint64_t sequence_number;
+    uint8_t value_type;
 
-    node(const int level, const std::string &k, const std::string &v="", const int flagcode=0):
+    node(const int level, const std::string &k, const std::string &v="", const uint64_t seqno=0, const int flagcode=0):
         height(level),
         key(k),
         val(v),
-        flag(flagcode){
+        sequence_number(seqno),
+        value_type(flagcode){
         assert(level>0);
         fprintf(stderr, "    new level:%d, key:%s, val:%s\n", level, k.c_str(), v.c_str());
-        forwards = new node*[height];
+        forwards = new node *[height];
         assert(forwards!=nullptr);
         for(int i=0; i<height; ++i){
             forwards[i] = nullptr;
@@ -124,7 +128,7 @@ public:
 
     node *search(const std::string &k);
 
-    node *insert(const std::string &k, const std::string &v, const int flag=0);
+    node *insert(const std::string &k, const std::string &v, const uint64_t seqno, const int flag=0);
 
     void print();
 

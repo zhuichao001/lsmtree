@@ -28,18 +28,15 @@ int sstable::load(const char *path){
     idxoffset = 0;
     datoffset = SST_LIMIT;
 
-    int meta[4];
-    for(int pos=0; ; pos+=sizeof(meta)){
-        pread(fd, meta, sizeof(meta), pos);
-        const int code   = meta[0];
-        const int offset = meta[1];
-        const int len    = meta[2];
-        const int flag   = meta[3];
+    rowmeta meta;
+    for(int pos=0; ;pos+=sizeof(meta)){
+        pread(fd, (void*)&meta, sizeof(meta), pos);
+
         idxoffset = pos;
-        if(code==0 && offset==0){
+        if(meta.hashcode==0 && meta.datoffset==0 && meta.datlen==0 && meta.flag==0){
             break;
         }
-        datoffset = offset;
+        datoffset = meta.datoffset;
     }
     return 0;
 }
@@ -49,21 +46,22 @@ int sstable::close(){
     return 0;
 }
 
-int sstable::get(const std::string &key, std::string &val){
+int sstable::get(const uint64_t seqno, const std::string &key, std::string &val){
     const int hashcode = hash(key.c_str(), key.size());
-    int meta[4];
+    rowmeta meta;
+    //TODO optimize 
     for(int pos=0; pos<idxoffset; pos+=sizeof(meta)){
-        pread(fd, meta, sizeof(meta), pos);
-        if(hashcode==meta[0]){
-            const int offset = meta[1];
-            const int datlen = meta[2];
-            const int flag = meta[3];
-            if(flag==FLAG_DEL){
+        pread(fd, &meta, sizeof(meta), pos);
+        if(hashcode==meta.hashcode){
+            if(meta.seqno>seqno){
                 continue;
             }
+            if(meta.flag==FLAG_DEL){
+                return ERROR_KEY_DELETED;
+            }
 
-            char data[datlen];
-            pread(fd, data, datlen, offset);
+            char data[meta.datlen];
+            pread(fd, data, meta.datlen, meta.datoffset);
             char *ckey, *cval;
             loadkv(data, &ckey, &cval);
             if(strcmp(ckey, key.c_str())==0){
@@ -75,7 +73,7 @@ int sstable::get(const std::string &key, std::string &val){
     return ERROR_KEY_NOTEXIST;
 }
 
-int sstable::put(const std::string &key, const std::string &val, int flag){
+int sstable::put(const uint64_t seqno, const std::string &key, const std::string &val, int flag){
     const int keylen = key.size()+1;
     const int vallen = val.size()+1;
     const int datlen = sizeof(int) + keylen + sizeof(int) + vallen;
@@ -93,8 +91,8 @@ int sstable::put(const std::string &key, const std::string &val, int flag){
     pwrite(fd, data, datlen, datoffset);
 
     const int hashcode = hash(key.c_str(), key.size());
-    int meta[4] = {hashcode, datoffset, datlen, flag};
-    pwrite(fd, meta, sizeof(meta), idxoffset);
+    rowmeta meta = {seqno, hashcode, datoffset, datlen, flag};
+    pwrite(fd, (void*)&meta, sizeof(meta), idxoffset);
     idxoffset += sizeof(meta);
 
     uplimit(key);
@@ -105,53 +103,46 @@ int sstable::reset(const std::vector<kvtuple > &tuples){
     idxoffset = 0;
     datoffset = SST_LIMIT;
     for(auto it = tuples.begin(); it!=tuples.end(); ++it){
-        const kvtuple &t = *it;
-        put(t.ckey, t.cval, t.flag);
+        const kvtuple t = *it;
+        put(t.seqno, t.ckey, t.cval, t.flag);
     }
 
-    int meta[4] = {0,0,0,0}; // indicate ENDING
-    pwrite(fd, meta, sizeof(meta), idxoffset);
+    rowmeta meta = {0, 0,0,0,0}; // indicate ENDING
+    pwrite(fd, &meta, sizeof(meta), idxoffset);
     return 0;
 }
 
-int sstable::scan(std::function<int(const char*, const char*, int)> func){
-    int meta[4];
+int sstable::scan(const uint64_t seqno, std::function<int(const char*, const char*, int)> func){
+    rowmeta meta;
     for(int pos=0; pos<idxoffset; pos+=sizeof(meta)){
-        pread(fd, meta, sizeof(meta), pos);
-        const int offset = meta[1];
-        const int datlen = meta[2];
-        const int flag   = meta[3];
+        pread(fd, (void*)&meta, sizeof(meta), pos);
+        if(meta.seqno>seqno){
+            continue;
+        }
 
-        char data[datlen];
-        pread(fd, data, datlen, offset);
+        char data[meta.datlen];
+        pread(fd, data, meta.datlen, meta.datoffset);
 
         char *ckey, *cval;
         loadkv(data, &ckey, &cval);
-        func(ckey, cval, flag);
+        func(ckey, cval, meta.flag);
     }
     return 0;
 }
 
 int sstable::peek(int idxoffset, kvtuple &record) {
-    if(idxoffset & (sizeof(int)*4-1)!=0){
+    rowmeta meta;
+    pread(fd, &meta, sizeof(meta), idxoffset);
+
+    if(meta.hashcode==0 && meta.datoffset==0 && meta.datlen==0 && meta.flag==0){
         return -1;
     }
 
-    int meta[4];
-    pread(fd, meta, sizeof(meta), idxoffset);
-    const int code = meta[0];
-    const int offset = meta[1];
-    const int datlen = meta[2];
-    record.flag   = meta[3];
-
-    if(code==0 && offset==0 && datlen==0 && record.flag==0){
-        return -1;
-    }
-
-    char data[datlen];
-    pread(fd, data, datlen, offset);
+    char data[meta.datlen];
+    pread(fd, (void*)data, meta.datlen, meta.datoffset);
 
     loadkv(data, &record.ckey, &record.cval);
+    record.flag = meta.flag;
     return 0;
 }
 

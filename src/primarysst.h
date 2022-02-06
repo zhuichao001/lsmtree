@@ -22,9 +22,7 @@ class primarysst: public basetable{
     char *mem;
     std::multimap<int, kvtuple> codemap; //hashcode => kvtuple(in order to speed up)
     int restoremeta();
-
     int peek(int idxoffset, kvtuple &record);
-
 public:
     primarysst();
 
@@ -37,11 +35,13 @@ public:
     int close();
 
 public:
-    int put(const std::string &key, const std::string &val, int flag=0);
+    int get(const uint64_t seqno, const std::string &key, kvtuple &res);
 
-    int get(const std::string &key, std::string &val);
+    int get(const uint64_t seqno, const std::string &key, std::string &val);
 
-    int scan(std::function<int(const char*, const char*, int)> func);
+    int put(const uint64_t seqno, const std::string &key, const std::string &val, int flag=0);
+
+    int scan(const uint64_t seqno, std::function<int(const char*, const char*, int)> func);
 };
 
 primarysst *create_primarysst(int filenumber);

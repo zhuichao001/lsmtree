@@ -35,11 +35,11 @@ public:
 
     int reset(const std::vector<kvtuple > &tuples);
 public:
-    int get(const std::string &key, std::string &val);
+    int get(const uint64_t seqno, const std::string &key, std::string &val);
 
-    int put(const std::string &key, const std::string &val, int flag=0);
+    int put(const uint64_t seqno, const std::string &key, const std::string &val, int flag=0);
 
-    int scan(std::function<int(const char*, const char*, int)> func);
+    int scan(const uint64_t seqno, std::function<int(const char*, const char*, int)> func);
 };
 
 sstable *create_sst(int level, int filenumber);

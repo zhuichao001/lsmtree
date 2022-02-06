@@ -10,6 +10,8 @@ public:
     int del(const std::string &key){
         return 0;
     }
+private:
+    int serialno;
 };
 
 #endif

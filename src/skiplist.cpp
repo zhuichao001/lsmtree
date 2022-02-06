@@ -16,7 +16,7 @@ node *skiplist::search(const std::string &k){
 }
 
 
-node *skiplist::insert(const std::string &k, const std::string &v, const int flag){
+node *skiplist::insert(const std::string &k, const std::string &v, const uint64_t seqno, const int flag){
     node *updates[this->MAXHEIGHT];
     node *cur = this->head;
     for(int i=this->height-1; i>=0; --i){
@@ -29,13 +29,13 @@ node *skiplist::insert(const std::string &k, const std::string &v, const int fla
     //update
     if(cur->forwards[0]->key==k) {
         cur->forwards[0]->val = v;
-        cur->forwards[0]->flag = flag;
+        cur->forwards[0]->value_type = flag;
         return cur->forwards[0];
     } 
     
     //insert
     const int H = this->level();
-    node * neo = new node(H, k, v, flag);
+    node * neo = new node(H, k, v, seqno, flag);
     if(neo==nullptr){
         fprintf(stderr, "can't malloc when insert");
         return nullptr;
