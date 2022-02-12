@@ -18,7 +18,7 @@ int lsmtree::open(const options *opt, const char *basedir){
         return 0;
     }
 
-    versions = new versionset;
+    versions_ = new versionset;
     /*
 
     std::vector<std::string> files; //temporary
@@ -48,69 +48,78 @@ int lsmtree::open(const options *opt, const char *basedir){
 }
 
 int lsmtree::get(const roptions &opt, const std::string &key, std::string &val){
-    int seqno = (opt.snap==nullptr)? versions->last_sequence():opt.snap->sequence();
-    mutab->ref();
-    if(immutab!=nullptr){
-        mutab->ref();
-    }
-
-    if(mutab->get(seqno, key, val)==0){
-        return 0;
-    }
-    mutab->unref();
-
-    if(immutab!=nullptr){ 
-        if(immutab->get(seqno, key, val)==0){
+    int seqno = (opt.snap==nullptr)? versions_->last_sequence():opt.snap->sequence();
+    {
+        mutab_->ref();
+        int err = mutab_->get(seqno, key, val);
+        mutab_->unref();
+        if(err==0){
             return 0;
         }
-        immutab->unref();
     }
 
-    version *cur = versions->current();
-    return cur->get(seqno, key, val);
+    if(immutab_!=nullptr){
+        immutab_->ref();
+        int err = immutab_->get(seqno, key, val);
+        immutab_->unref();
+        if(err==0){
+            return 0;
+        }
+    }
+
+    {
+        version *cur = versions_->current();
+        cur->ref();
+        int err = cur->get(seqno, key, val);
+        schedule_compaction();
+        cur->unref();
+        return err;
+    }
 }
 
 void lsmtree::schedule_compaction(){
-    if(immutab!=nullptr){
+    if(!compare_and_swap(&compacting_, false, true)){
+        return;
+    }
+
+    if(immutab_!=nullptr){
         backstage.post([this]{this->minor_compact();});
         return;
     }
 
     //TODO: deal manual compaction
-
-    if(versions->need_compact()){
+    if(versions_->need_compact()){
         backstage.post([this]{this->major_compact();});
         return;
     }
 }
 
-int lsmtree::ensure_space(){
-    if(mutab->size() < MAX_MEMTAB_SIZE){
+int lsmtree::sweep_space(){
+    if(mutab_->size() < MAX_MEMTAB_SIZE){
         return 0;
     }
 
-    std::unique_lock<std::mutex> lock{mutex};
-    if (immutab!=nullptr) {
-        level0_cv.wait(lock);
-    } else if(mutab->size() >= SST_LIMIT){
+    std::unique_lock<std::mutex> lock{mutex_};
+    if (immutab_!=nullptr) {
+        level0_cv_.wait(lock);
+    } else {
         //TODO log file
-        immutab = mutab;
-        mutab = new memtable;
-        mutab->ref();
+        immutab_ = mutab_;
+        mutab_ = new memtable;
+        mutab_->ref();
         schedule_compaction();
     }
-    mutex.unlock();
     return 0;
 }
 
 int lsmtree::put(const woptions &opt, const std::string &key, const std::string &val){
-    if(ensure_space()){
+    if(sweep_space()){
         fprintf(stderr, "shift space error\n");
         return -1;
     }
 
-    int seqno = versions->add_sequence(1);
-    if(mutab->put(seqno, key, val)<0){ //TODO: USE Writebatch
+    int seqno = versions_->add_sequence(1);
+    if(mutab_->put(seqno, key, val)<0){ //TODO: USE Writebatch
         return -1;
     }
 
@@ -118,13 +127,13 @@ int lsmtree::put(const woptions &opt, const std::string &key, const std::string 
 }
 
 int lsmtree::del(const woptions &opt, const std::string &key){
-    if(ensure_space()){
+    if(sweep_space()){
         fprintf(stderr, "shift space error\n");
         return -1;
     }
 
-    int seqno = versions->add_sequence(1);
-    if(mutab->del(seqno, key)<0){
+    int seqno = versions_->add_sequence(1);
+    if(mutab_->del(seqno, key)<0){
         return -1;
     }
 
@@ -132,62 +141,33 @@ int lsmtree::del(const woptions &opt, const std::string &key){
 }
 
 int lsmtree::minor_compact(){
-    if(immutab==nullptr){
-        fprintf(stderr, "error, when lsmtree::minor_compact immutab is null");
-        return -1;
-    }
+    assert(immutab_!=nullptr);
 
-    primarysst *sst = create_primarysst(versions->next_fnumber());
-    immutab->scan(versions->last_sequence(), [=](const uint64_t seqno, const std::string &key, const std::string &val, int flag) ->int {
+    primarysst *sst = create_primarysst(versions_->next_fnumber());
+    immutab_->scan(versions_->last_sequence(), [=](const uint64_t seqno, const std::string &key, const std::string &val, int flag) ->int {
         sst->put(seqno, key, val, flag);
         return 0;
     });
 
     versionedit edit;
-    edit.add(1, sst);
+    edit.add(0, sst);
+    sst->ref();
 
-    version *cur = versions->current();
+    version *cur = versions_->current();
     cur->ref();
-    versions->apply(&edit);
+    versions_->apply(&edit);
     cur->unref();
+    immutab_->unref();
 
-    {
-        pthread_rwlock_wrlock(&lock);
-        delete immutab;
-        immutab = nullptr;
-        pthread_rwlock_unlock(&lock);
-    }
-
+    assert(compacting_==true);
+    compacting_ = false;
     return 0;
 }
 
-/*
-int lsmtree::select_overlap(const int ln, std::vector<basetable*> &from, std::vector<basetable*> &to){
-    int n = 0;
-    for(int j=0; j<levels[ln].size(); ++j){
-        basetable *sst = levels[ln][j];
-        if(sst->state = basetable::COMPACTING){
-            continue;
-        }
-
-        for(int i=0; i<from.size(); ++i){
-            if(from[i]->state = basetable::COMPACTING){
-                continue;
-            }
-            if(sst->overlap(from[i])){
-                sst->state = basetable::COMPACTING;
-                to.push_back(sst);
-                ++n;
-            }
-        }
-    }
-    return n;
-}
-*/
-
 int lsmtree::major_compact(){
-    compaction *c = versions->plan_compact();
+    compaction *c = versions_->plan_compact();
     if(c==nullptr){ //do nothing
+        compacting_ = false;
         return 0;
     }
 
@@ -202,7 +182,7 @@ int lsmtree::major_compact(){
             }
         }
         int destlevel = c->level();
-        sstable *sst = create_sst(destlevel, ++sstnumber);
+        sstable *sst = create_sst(destlevel, versions_->next_fnumber());
         edit.add(destlevel, sst);
         make_heap(vec.begin(), vec.end(), basetable::compare);
         while(!vec.empty()){
@@ -216,22 +196,26 @@ int lsmtree::major_compact(){
                 vec.pop_back(); //remove iterator
             }
             if(sst->put(t.seqno, std::string(t.ckey), std::string(t.cval), t.flag)==ERROR_SPACE_NOT_ENOUGH){
-                sst = create_sst(destlevel, ++sstnumber);
+                sst = create_sst(destlevel, versions_->next_fnumber());
                 edit.add(destlevel, sst);
                 sst->put(t.seqno, std::string(t.ckey), std::string(t.cval), t.flag);
             }
         }
     }
-    versions->apply(&edit);
-    versions->current()->calculate();
+    versions_->apply(&edit);
+    versions_->current()->calculate();
+
+    assert(compacting_==true);
+    compacting_ = false;
+
     schedule_compaction();
     return 0;
 }
 
 snapshot * lsmtree::get_snapshot(){
-    return snapshots.create(versions->last_sequence());
+    return snapshots_.create(versions_->last_sequence());
 }
 
 int lsmtree::release_snapshot(snapshot *snap){
-    return snapshots.destroy(snap);
+    return snapshots_.destroy(snap);
 }

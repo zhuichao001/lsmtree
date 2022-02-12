@@ -116,6 +116,7 @@ void versionset::apply(versionedit *edit){
         for(int j=0; j<cur->ssts[i].size(); ++j){
             basetable *t = cur->ssts[i][j];
             if(edit->delfiles.count(t)!=0){
+                t->unref();
                 continue;
             }
             for(; k<added.size(); ++k){
@@ -124,6 +125,9 @@ void versionset::apply(versionedit *edit){
                 }
             }
             neo->ssts[i].push_back(cur->ssts[i][j]);
+        }
+        for(; k<added.size(); ++k){
+            neo->ssts[i].push_back(added[k]);
         }
     }
     current_ = neo;

@@ -17,6 +17,7 @@
 #include "threadpool.h"
 #include "version.h"
 #include "options.h"
+#include "util.h"
 
 typedef std::pair<std::string, std::string> kvpair;
 
@@ -25,18 +26,16 @@ const int TIER_SST_COUNT(int level);
 const int MAX_COMPACT_LEVELS = 2; //everytime compact 2 levels at most
 
 class lsmtree{
-    memtable *mutab;
-    memtable *immutab;
-    pthread_rwlock_t lock;
-    std::mutex mutex;
-    std::condition_variable level0_cv;
+    memtable *mutab_;
+    memtable *immutab_;
+    //pthread_rwlock_t lock;
+    std::mutex mutex_;
+    std::condition_variable level0_cv_;
 
-    versionset *versions;
+    bool compacting_;
+    versionset *versions_;
 
-    //serial number
-    int sstnumber;
-
-    snapshotlist snapshots;
+    snapshotlist snapshots_;
 
     char pripath[128];
     char sstpath[128];
@@ -50,29 +49,29 @@ class lsmtree{
 
     int select_overlap(const int ln, std::vector<basetable*> &from, std::vector<basetable*> &to);
 
-    int ensure_space();
+    int sweep_space();
 
     void schedule_compaction();
 
 public:
     lsmtree():
-        immutab(nullptr),
-        sstnumber(0),
-        versions(nullptr){
-        pthread_rwlockattr_t attr;
-        pthread_rwlockattr_init(&attr);
-        pthread_rwlockattr_setkind_np(&attr, PTHREAD_RWLOCK_PREFER_WRITER_NONRECURSIVE_NP);
-        pthread_rwlock_init(&lock, &attr);
-        mutab = new memtable;
+        immutab_(nullptr),
+        compacting_(false),
+        versions_(nullptr){
+        //pthread_rwlockattr_t attr;
+        //pthread_rwlockattr_init(&attr);
+        //pthread_rwlockattr_setkind_np(&attr, PTHREAD_RWLOCK_PREFER_WRITER_NONRECURSIVE_NP);
+        //pthread_rwlock_init(&lock, &attr);
+        mutab_ = new memtable;
     }
 
     ~lsmtree(){
-        if(immutab){
-            delete immutab;
+        if(immutab_){
+            delete immutab_;
         }
 
-        if(mutab){
-            delete mutab;
+        if(mutab_){
+            delete mutab_;
         }
     }
 
@@ -86,8 +85,10 @@ public:
     snapshot * get_snapshot();
     int release_snapshot(snapshot *snap);
 
-    int campact(std::string startkey, std::string endkey);
-    //iterator *newiterator(); //TODO
+    int campact(std::string startkey, std::string endkey){
+        //TODO
+        return -1;
+    }
 };
 
 #endif

@@ -64,6 +64,7 @@ private:
     std::vector<basetable*> addfiles[MAX_LEVELS];
 public:
     void add(int level, basetable *t){
+        assert(level>=0 && level<MAX_LEVELS);
         addfiles[level].push_back(t);
     }
 
