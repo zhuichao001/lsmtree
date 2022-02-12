@@ -58,11 +58,8 @@ public:
         immutab_(nullptr),
         compacting_(false),
         versions_(nullptr){
-        //pthread_rwlockattr_t attr;
-        //pthread_rwlockattr_init(&attr);
-        //pthread_rwlockattr_setkind_np(&attr, PTHREAD_RWLOCK_PREFER_WRITER_NONRECURSIVE_NP);
-        //pthread_rwlock_init(&lock, &attr);
         mutab_ = new memtable;
+        assert(mutab_!=nullptr);
     }
 
     ~lsmtree(){
