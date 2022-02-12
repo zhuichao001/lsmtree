@@ -161,6 +161,9 @@ int lsmtree::minor_compact(){
 
     assert(compacting_==true);
     compacting_ = false;
+
+    level0_cv_.notify_all();
+    fprintf(stderr, "complete minor compact!!!");
     return 0;
 }
 

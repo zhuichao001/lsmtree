@@ -25,7 +25,10 @@ public:
     }
 
     void unref(){
-        --refnum;
+        assert(refnum>=1);
+        if(--refnum==0){
+            delete this;
+        }
     }
 
     int get(const uint64_t seqno, const std::string &key, std::string &val){

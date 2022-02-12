@@ -70,6 +70,14 @@ void version::calculate(){
     }
 }
 
+versionset::versionset():
+    next_fnumber_(1000),
+    last_sequence_(1),
+    verhead_(this),
+    current_(nullptr){
+    append(new version(this));
+}
+
 compaction *versionset::plan_compact(){
     compaction *c;
     int level = -1;
@@ -107,7 +115,7 @@ compaction *versionset::plan_compact(){
 }
 
 void versionset::apply(versionedit *edit){
-    version *neo = new version;
+    version *neo = new version(this);
     version * cur = current();
 
     for(int i=0; i<MAX_LEVELS; ++i){
@@ -130,5 +138,5 @@ void versionset::apply(versionedit *edit){
             neo->ssts[i].push_back(added[k]);
         }
     }
-    current_ = neo;
+    this->append(neo);
 }

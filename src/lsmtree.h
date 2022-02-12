@@ -81,11 +81,6 @@ public:
 
     snapshot * get_snapshot();
     int release_snapshot(snapshot *snap);
-
-    int campact(std::string startkey, std::string endkey){
-        //TODO
-        return -1;
-    }
 };
 
 #endif

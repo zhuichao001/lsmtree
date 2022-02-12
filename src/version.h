@@ -24,7 +24,6 @@ class version {
 
     versionset *vset;
     int refnum;
-    bool compacting;
 
     std::vector<basetable*> ssts[MAX_LEVELS];
 
@@ -35,6 +34,10 @@ class version {
     double crownd_score;
     int crownd_level;
 public:
+    version(versionset *vs):
+        vset(vs){
+    }
+
     void ref(){
         ++refnum;
     }
@@ -42,6 +45,8 @@ public:
     void unref(){
         assert(refnum>=1);
         if(--refnum==0){
+            this->prev->next = this->next;
+            this->next->prev = this->prev;
             delete this;
         }
     }
@@ -83,11 +88,14 @@ private:
     int next_fnumber_; //TODO: atomic
     int last_sequence_;
     
+    version verhead_;
     version *current_;
 
     std::string campact_poles_[MAX_LEVELS]; //next campact start-key for every level
 
 public:
+    versionset();
+
     int next_fnumber(){
         return ++next_fnumber_;
     }
@@ -113,9 +121,18 @@ public:
         return current_;
     }
 
-    //TODO: for manual compaction
-    int compact_range(const int level, const std::string &startkey, const std::string &endkey){
-        return 0;
+    void append(version *ver){
+        if(current_!=nullptr){
+            current_->unref();
+        }
+        current_ = ver;
+        ver->ref();
+
+        //append current_ to tail
+        ver->next = &verhead_;
+        ver->prev = verhead_.prev;
+        verhead_.prev->next = ver;
+        verhead_.prev = ver;
     }
 
     bool need_compact(){
