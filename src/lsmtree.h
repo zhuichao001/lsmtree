@@ -59,7 +59,7 @@ public:
         compacting_(false),
         versions_(nullptr){
         mutab_ = new memtable;
-        assert(mutab_!=nullptr);
+        versions_ = new versionset;
     }
 
     ~lsmtree(){

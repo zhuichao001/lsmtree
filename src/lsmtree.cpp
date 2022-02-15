@@ -18,7 +18,6 @@ int lsmtree::open(const options *opt, const char *basedir){
         return 0;
     }
 
-    versions_ = new versionset;
     /*
 
     std::vector<std::string> files; //temporary

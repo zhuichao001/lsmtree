@@ -33,7 +33,7 @@ public:
         sequence_number(seqno),
         value_type(flagcode){
         assert(level>0);
-        fprintf(stderr, "    new level:%d, key:%s, val:%s\n", level, k.c_str(), v.c_str());
+        //fprintf(stderr, "    new level:%d, key:%s, val:%s\n", level, k.c_str(), v.c_str());
         forwards = new node *[height];
         assert(forwards!=nullptr);
         for(int i=0; i<height; ++i){

@@ -2,7 +2,7 @@
 #include "lsmtree.h"
 
 void test0(){
-    const int COUNT = 100000;
+    const int COUNT = 100;
     lsmtree db;
     woptions wopt;
     roptions ropt;
@@ -14,7 +14,7 @@ void test0(){
         sprintf(k, "key_%d", i);
         sprintf(v, "val_%d", i);
 
-        //std::cout << " insert " << k << ", hashcode:" << hash(k, strlen(k)) <<std::endl;
+        std::cout << " insert " << k << ", hashcode:" << hash(k, strlen(k)) <<std::endl;
         db.put(wopt, k, v);
     }
 
@@ -27,7 +27,7 @@ void test0(){
         sprintf(k, "key_%d", i);
         sprintf(v, "val_%d", i);
 
-        //std::cout << " query " << k << ", hashcode:" << hash(k, strlen(k)) <<std::endl;
+        std::cout << " query " << k << ", hashcode:" << hash(k, strlen(k)) <<std::endl;
         db.get(ropt, k, val);
         if(std::string(v)==val){
             std::cerr<< "yes same:" <<k <<std::endl;

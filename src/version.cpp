@@ -71,11 +71,12 @@ void version::calculate(){
 }
 
 versionset::versionset():
-    next_fnumber_(1000),
+    next_fnumber_(10000),
     last_sequence_(1),
-    verhead_(this),
     current_(nullptr){
-    append(new version(this));
+    verhead_.prev = &verhead_;
+    verhead_.next = &verhead_;
+    this->append(new version(this));
 }
 
 compaction *versionset::plan_compact(){

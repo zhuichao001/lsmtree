@@ -34,6 +34,10 @@ class version {
     double crownd_score;
     int crownd_level;
 public:
+    version(){
+        vset = nullptr;
+    }
+
     version(versionset *vs):
         vset(vs){
     }
