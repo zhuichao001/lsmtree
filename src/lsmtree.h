@@ -58,18 +58,17 @@ public:
         immutab_(nullptr),
         compacting_(false),
         versions_(nullptr){
-        mutab_ = new memtable;
-        versions_ = new versionset;
     }
 
     ~lsmtree(){
-        if(immutab_){
-            delete immutab_;
+        if(mutab_){
+            mutab_->unref();
         }
 
-        if(mutab_){
-            delete mutab_;
+        if(immutab_){
+            immutab_->unref();
         }
+
     }
 
     int open(const options *opt, const char *basedir);

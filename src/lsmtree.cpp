@@ -15,8 +15,13 @@ int lsmtree::open(const options *opt, const char *basedir){
     if(!exist(basedir)){
         mkdir(pripath);
         mkdir(sstpath);
-        return 0;
     }
+
+    mutab_ = new memtable;
+    mutab_->ref();
+    versions_ = new versionset;
+
+    return 0;
 
     /*
 
