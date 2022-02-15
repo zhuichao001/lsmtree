@@ -58,6 +58,7 @@ int lsmtree::get(const roptions &opt, const std::string &key, std::string &val){
         int err = mutab_->get(seqno, key, val);
         mutab_->unref();
         if(err==0){
+            fprintf(stderr, "ok, mutab get %s:%s\n", key.c_str(), val.c_str());
             return 0;
         }
     }
@@ -67,6 +68,7 @@ int lsmtree::get(const roptions &opt, const std::string &key, std::string &val){
         int err = immutab_->get(seqno, key, val);
         immutab_->unref();
         if(err==0){
+            fprintf(stderr, "ok, immutab get %s:%s\n", key.c_str(), val.c_str());
             return 0;
         }
     }
@@ -77,6 +79,7 @@ int lsmtree::get(const roptions &opt, const std::string &key, std::string &val){
         int err = cur->get(seqno, key, val);
         schedule_compaction();
         cur->unref();
+        fprintf(stderr, "err:%d, version get %s:%s\n", err, key.c_str(), val.c_str());
         return err;
     }
 }
@@ -118,20 +121,14 @@ int lsmtree::sweep_space(){
 }
 
 int lsmtree::put(const woptions &opt, const std::string &key, const std::string &val){
-    fprintf(stderr, "put step 0...\n");
     if(sweep_space()){
         fprintf(stderr, "shift space error\n");
         return -1;
     }
-    fprintf(stderr, "put step 1...\n");
-
     int seqno = versions_->add_sequence(1);
-    fprintf(stderr, "put step 2...\n");
     if(mutab_->put(seqno, key, val)<0){ //TODO: USE Writebatch
         return -1;
     }
-    fprintf(stderr, "put step 3...\n");
-
     return 0;
 }
 
@@ -150,15 +147,21 @@ int lsmtree::del(const woptions &opt, const std::string &key){
 }
 
 int lsmtree::minor_compact(){
-    assert(immutab_!=nullptr);
-
+    std::unique_lock<std::mutex> lock{mutex_};
+    versionedit edit;
     primarysst *sst = create_primarysst(versions_->next_fnumber());
-    immutab_->scan(versions_->last_sequence(), [=](const uint64_t seqno, const std::string &key, const std::string &val, int flag) ->int {
-        sst->put(seqno, key, val, flag);
+    immutab_->scan(versions_->last_sequence(), [=, &edit, &sst](const uint64_t seqno, const std::string &key, const std::string &val, int flag) ->int {
+        fprintf(stderr, "minor compact, %s\n", key.c_str());
+        if(sst->put(seqno, key, val, flag)==ERROR_SPACE_NOT_ENOUGH){
+            fprintf(stderr, "sst range:[%s, %s]\n", sst->smallest.c_str(), sst->largest.c_str());
+            edit.add(0, sst);
+            sst->ref();
+            sst = create_primarysst(versions_->next_fnumber());
+            sst->put(seqno, key, val, flag);
+        }
         return 0;
     });
-
-    versionedit edit;
+    fprintf(stderr, "sst range:[%s, %s]\n", sst->smallest.c_str(), sst->largest.c_str());
     edit.add(0, sst);
     sst->ref();
 

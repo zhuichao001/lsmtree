@@ -47,7 +47,7 @@ public:
         return -1;
     }
 
-    int put(const uint64_t seqno, const std::string &key, const std::string &val, const uint8_t flag=0){
+    int put(const uint64_t seqno, const std::string &key, const std::string &val, const uint8_t flag=FLAG_VAL){
         size_ += key.size() + val.size() + sizeof(int)*4;
         node *neo = table_.insert(key, val, seqno, flag);
         assert(neo!=nullptr);

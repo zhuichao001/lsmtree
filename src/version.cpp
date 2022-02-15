@@ -9,20 +9,26 @@ int max_level_size(int ln){
 
 int version::get(const uint64_t seqno, const std::string &key, std::string &val){
     kvtuple res;
+    res.seqno = 0;
+
     for(int j=0; j<ssts[0].size(); ++j){
-        if(key<ssts [0][j]->smallest || key>ssts[0][j]->largest){
+        if(key<ssts[0][j]->smallest || key>ssts[0][j]->largest){
             continue;
         }
 
         kvtuple tmp;
         primarysst *t = dynamic_cast<primarysst*>(ssts[0][j]);
-        if(t->get(seqno, key, tmp)<0){
+        t->ref();
+        int err = t->get(seqno, key, tmp);
+        t->unref();
+        if(err<0){
             continue;
         }
         if(tmp.seqno>res.seqno){
             res = tmp;
         }
     }
+
     if(res.seqno>0){
         if(res.flag==FLAG_VAL){
             val = res.cval;
@@ -32,7 +38,7 @@ int version::get(const uint64_t seqno, const std::string &key, std::string &val)
         }
     }
 
-    for(int i=0; i<MAX_LEVELS; ++i){
+    for(int i=1; i<MAX_LEVELS; ++i){
         std::vector<basetable*>::iterator it = std::lower_bound(ssts[i].begin(), ssts[i].end(), key, 
                 [](const basetable *b, const std::string &k) { return b->smallest < k; });
         if(it==ssts[i].end()){
@@ -81,13 +87,12 @@ versionset::versionset():
 
 compaction *versionset::plan_compact(){
     compaction *c;
-    int level = -1;
 
     const bool size_too_big = current_->crownd_score >= 1.0;
     const bool seek_too_many = current_->hot_sst != nullptr;
 
     if (size_too_big) {
-        level = current_->crownd_level;
+        int level = current_->crownd_level;
         c = new compaction(current_, level);
         for(int i=0; i < current_->ssts[level].size(); ++i){
             basetable *t = current_->ssts[level][i];
@@ -129,12 +134,14 @@ void versionset::apply(versionedit *edit){
             for(; k<added.size(); ++k){
                 if(added[k]->smallest < t->smallest){
                     neo->ssts[i].push_back(added[k]);
+                    fprintf(stderr, "apply: add to level %d \n", i);
                 }
             }
             neo->ssts[i].push_back(current_->ssts[i][j]);
         }
         for(; k<added.size(); ++k){
             neo->ssts[i].push_back(added[k]);
+            fprintf(stderr, "apply: add to level %d \n", i);
         }
     }
     this->append(neo);

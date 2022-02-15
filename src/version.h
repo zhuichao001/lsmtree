@@ -77,6 +77,7 @@ public:
     void add(int level, basetable *t){
         assert(level>=0 && level<MAX_LEVELS);
         addfiles[level].push_back(t);
+        fprintf(stderr, "add level:%d, key range:[%s, %s]\n", level, t->smallest.c_str(), t->largest.c_str());
     }
 
     void remove(basetable *t){

@@ -9,7 +9,7 @@
 
 const int MAX_LEVELS = 8;
 const int SST_LIMIT = 2<<10; //default sst size:2MB
-const int MAX_ALLOWED_SEEKS = SST_LIMIT / 20480;  //max seeks before compaction
+const int MAX_ALLOWED_SEEKS = SST_LIMIT / 2; //20480;  //max seeks before compaction
 
 typedef struct{
     uint64_t seqno;

@@ -95,7 +95,7 @@ int primarysst::put(const uint64_t seqno, const std::string &key, const std::str
     const int keylen = key.size()+1;
     const int vallen = val.size()+1;
     const int datlen = sizeof(int) + keylen + sizeof(int) + vallen;
-    if(datoffset - idxoffset <= datlen+sizeof(int)*8){
+    if(datoffset - idxoffset <= datlen+sizeof(rowmeta)){
         return ERROR_SPACE_NOT_ENOUGH;
     }
 
@@ -107,16 +107,14 @@ int primarysst::put(const uint64_t seqno, const std::string &key, const std::str
     msync(mem+datoffset, datlen, MS_SYNC);
 
     const int hashcode = hash(key.c_str(), key.size());
-
     rowmeta meta = {seqno, hashcode, datoffset, datlen, flag};
-
     memcpy(mem+idxoffset, &meta, sizeof(meta));
     msync(mem+idxoffset, sizeof(meta), MS_SYNC);
     idxoffset += sizeof(meta);
 
-    char *pkey = mem+datoffset+sizeof(int);
-    char *pval = mem+datoffset+sizeof(int)+keylen+sizeof(int);
-    codemap.insert(std::make_pair(hashcode, kvtuple{seqno, pkey, pval, flag}));
+    char *ckey = mem+datoffset+sizeof(int);
+    char *cval = mem+datoffset+sizeof(int)+keylen+sizeof(int);
+    codemap.insert(std::make_pair(hashcode, kvtuple{seqno, ckey, cval, flag}));
 
     uplimit(key);
     return 0;
@@ -135,6 +133,7 @@ int primarysst::get(const uint64_t seqno, const std::string &key, kvtuple &res){
             res = t;
             return SUCCESS;
         }
+        fprintf(stderr, "found kvtuple, seqno:%d, seqno:%d, key:%s, val:%s,flag:%d %d, %d\n", seqno, t.seqno, t.ckey, t.cval, t.flag, key==t.ckey, t.flag==FLAG_VAL);
     }
     return ERROR_KEY_NOTEXIST;
 }
