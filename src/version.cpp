@@ -117,13 +117,11 @@ compaction *versionset::plan_compact(){
 
 void versionset::apply(versionedit *edit){
     version *neo = new version(this);
-    version * cur = current();
-
     for(int i=0; i<MAX_LEVELS; ++i){
         std::vector<basetable*> &added = edit->addfiles[i];
         int k = 0;
-        for(int j=0; j<cur->ssts[i].size(); ++j){
-            basetable *t = cur->ssts[i][j];
+        for(int j=0; j<current_->ssts[i].size(); ++j){
+            basetable *t = current_->ssts[i][j];
             if(edit->delfiles.count(t)!=0){
                 t->unref();
                 continue;
@@ -133,7 +131,7 @@ void versionset::apply(versionedit *edit){
                     neo->ssts[i].push_back(added[k]);
                 }
             }
-            neo->ssts[i].push_back(cur->ssts[i][j]);
+            neo->ssts[i].push_back(current_->ssts[i][j]);
         }
         for(; k<added.size(); ++k){
             neo->ssts[i].push_back(added[k]);

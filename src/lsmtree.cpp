@@ -105,6 +105,7 @@ int lsmtree::sweep_space(){
 
     std::unique_lock<std::mutex> lock{mutex_};
     if (immutab_!=nullptr) {
+        fprintf(stderr, "level0 wait\n");
         level0_cv_.wait(lock);
     } else {
         //TODO log file
@@ -117,15 +118,19 @@ int lsmtree::sweep_space(){
 }
 
 int lsmtree::put(const woptions &opt, const std::string &key, const std::string &val){
+    fprintf(stderr, "put step 0...\n");
     if(sweep_space()){
         fprintf(stderr, "shift space error\n");
         return -1;
     }
+    fprintf(stderr, "put step 1...\n");
 
     int seqno = versions_->add_sequence(1);
+    fprintf(stderr, "put step 2...\n");
     if(mutab_->put(seqno, key, val)<0){ //TODO: USE Writebatch
         return -1;
     }
+    fprintf(stderr, "put step 3...\n");
 
     return 0;
 }
@@ -157,11 +162,9 @@ int lsmtree::minor_compact(){
     edit.add(0, sst);
     sst->ref();
 
-    version *cur = versions_->current();
-    cur->ref();
     versions_->apply(&edit);
-    cur->unref();
     immutab_->unref();
+    immutab_ = nullptr;
 
     assert(compacting_==true);
     compacting_ = false;
