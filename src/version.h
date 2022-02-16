@@ -39,6 +39,14 @@ public:
         refnum(0){
     }
 
+    ~version(){
+        for(int i=0; i<MAX_LEVELS; ++i){
+            for(int j=0; j<ssts[i].size(); ++j){
+                ssts[i][j]->unref();
+            }
+        }
+    }
+
     version(versionset *vs):
         vset(vs),
         refnum(0){

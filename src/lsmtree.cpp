@@ -219,6 +219,7 @@ int lsmtree::major_compact(){
             }
             if(sst->put(t.seqno, std::string(t.ckey), std::string(t.cval), t.flag)==ERROR_SPACE_NOT_ENOUGH){
                 sst = create_sst(destlevel, versions_->next_fnumber());
+                sst->ref();
                 edit.add(destlevel, sst);
                 sst->put(t.seqno, std::string(t.ckey), std::string(t.cval), t.flag);
             }

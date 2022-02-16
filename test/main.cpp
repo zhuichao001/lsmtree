@@ -2,7 +2,7 @@
 #include "lsmtree.h"
 
 void test0(){
-    const int COUNT = 200;
+    const int COUNT = 2000;
     lsmtree db;
     woptions wopt;
     roptions ropt;
@@ -19,7 +19,6 @@ void test0(){
     }
 
     std::cout << " =========insert done !!!"<<std::endl;
-    sleep(2);
 
     std::string val;
     for(int i=0; i<COUNT; ++i){
