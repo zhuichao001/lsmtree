@@ -28,7 +28,6 @@ const int MAX_COMPACT_LEVELS = 2; //everytime compact 2 levels at most
 class lsmtree{
     memtable *mutab_;
     memtable *immutab_;
-    //pthread_rwlock_t lock;
     std::mutex mutex_;
     std::condition_variable level0_cv_;
 

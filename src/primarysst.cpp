@@ -21,9 +21,11 @@ int primarysst::restoremeta(){
     return 0;
 }
 
-primarysst::primarysst():
-    mem(nullptr) {
+primarysst::primarysst(const int fileno):
+    basetable(),
+    mem(nullptr){
     level = 0;
+    file_number = fileno;
 }
 
 primarysst::~primarysst(){
@@ -178,7 +180,7 @@ int primarysst::peek(int idxoffset, kvtuple &record) {
 }
 
 primarysst *create_primarysst(int filenumber){
-    primarysst *pri = new primarysst;
+    primarysst *pri = new primarysst(filenumber);
 
     char path[128];
     sprintf(path, "data/pri/\0"); //TODO

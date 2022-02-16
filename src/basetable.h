@@ -35,7 +35,6 @@ public:
     int file_number;
     int file_size;
 
-    //TODO: use sstmeta
     std::string smallest;
     std::string largest;
 

@@ -1,7 +1,9 @@
 #include "sstable.h"
 
-sstable::sstable(const int lev) {
+sstable::sstable(const int lev, const int fileno):
+    basetable(){
     level = lev;
+    file_number = fileno;
 }
 
 int sstable::create(const char *path){
@@ -151,7 +153,7 @@ int sstable::endindex(){
 }
 
 sstable *create_sst(int level, int filenumber){
-    sstable *sst = new sstable(level);
+    sstable *sst = new sstable(level, filenumber);
 
     char path[128];
     sprintf(path, "data/sst/%d/\0", level);

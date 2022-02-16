@@ -18,7 +18,8 @@ void test0(){
         db.put(wopt, k, v);
     }
 
-    std::cout << " insert done !!!"<<std::endl;
+    std::cout << " =========insert done !!!"<<std::endl;
+    sleep(2);
 
     std::string val;
     for(int i=0; i<COUNT; ++i){
@@ -34,6 +35,7 @@ void test0(){
         }else{
             std::cerr<< "not same!" << k << ":" << val << ", expect:" << v << std::endl;
         }
+        val = "";
     }
 }
 

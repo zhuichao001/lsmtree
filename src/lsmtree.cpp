@@ -53,8 +53,18 @@ int lsmtree::open(const options *opt, const char *basedir){
 
 int lsmtree::get(const roptions &opt, const std::string &key, std::string &val){
     int seqno = (opt.snap==nullptr)? versions_->last_sequence():opt.snap->sequence();
+    version *cur = versions_->current();
+
     {
+        std::unique_lock<std::mutex> lock{mutex_};
         mutab_->ref();
+        if(immutab_!=nullptr){
+            immutab_->ref();
+        }
+        cur->ref();
+    }
+
+    {
         int err = mutab_->get(seqno, key, val);
         mutab_->unref();
         if(err==0){
@@ -64,7 +74,6 @@ int lsmtree::get(const roptions &opt, const std::string &key, std::string &val){
     }
 
     if(immutab_!=nullptr){
-        immutab_->ref();
         int err = immutab_->get(seqno, key, val);
         immutab_->unref();
         if(err==0){
@@ -74,8 +83,6 @@ int lsmtree::get(const roptions &opt, const std::string &key, std::string &val){
     }
 
     {
-        version *cur = versions_->current();
-        cur->ref();
         int err = cur->get(seqno, key, val);
         schedule_compaction();
         cur->unref();
@@ -151,9 +158,9 @@ int lsmtree::minor_compact(){
     versionedit edit;
     primarysst *sst = create_primarysst(versions_->next_fnumber());
     immutab_->scan(versions_->last_sequence(), [=, &edit, &sst](const uint64_t seqno, const std::string &key, const std::string &val, int flag) ->int {
-        fprintf(stderr, "minor compact, %s\n", key.c_str());
+        fprintf(stderr, "minor compact, %s:%s\n", key.c_str(), val.c_str());
         if(sst->put(seqno, key, val, flag)==ERROR_SPACE_NOT_ENOUGH){
-            fprintf(stderr, "sst range:[%s, %s]\n", sst->smallest.c_str(), sst->largest.c_str());
+            fprintf(stderr, "sst-%d range:[%s, %s]\n", sst->file_number, sst->smallest.c_str(), sst->largest.c_str());
             edit.add(0, sst);
             sst->ref();
             sst = create_primarysst(versions_->next_fnumber());
@@ -161,7 +168,7 @@ int lsmtree::minor_compact(){
         }
         return 0;
     });
-    fprintf(stderr, "sst range:[%s, %s]\n", sst->smallest.c_str(), sst->largest.c_str());
+    fprintf(stderr, "sst-%d range:[%s, %s]\n", sst->file_number, sst->smallest.c_str(), sst->largest.c_str());
     edit.add(0, sst);
     sst->ref();
 
@@ -169,8 +176,10 @@ int lsmtree::minor_compact(){
     immutab_->unref();
     immutab_ = nullptr;
 
-    assert(compacting_==true);
-    compacting_ = false;
+    if(!compare_and_swap(&compacting_, true, false)){
+        fprintf(stderr, "Fault can not set compacting_ to false!!!");
+        return -1;
+    }
 
     level0_cv_.notify_all();
     fprintf(stderr, "complete minor compact!!!");

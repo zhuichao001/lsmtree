@@ -24,24 +24,24 @@ class primarysst: public basetable{
     int restoremeta();
     int peek(int idxoffset, kvtuple &record);
 public:
-    primarysst();
-
+    primarysst(const int fileno);
     ~primarysst();
 
     int create(const char *path);
-
     int load(const char *path);
-
     int close();
-
 public:
     int get(const uint64_t seqno, const std::string &key, kvtuple &res);
-
     int get(const uint64_t seqno, const std::string &key, std::string &val);
-
     int put(const uint64_t seqno, const std::string &key, const std::string &val, int flag=FLAG_VAL);
-
     int scan(const uint64_t seqno, std::function<int(const char*, const char*, int)> func);
+
+    void print(int seqno){
+        this->scan(seqno, [](const char *k, const char *v, int flag) -> int{
+            fprintf(stderr, "  %s:%s %d", k, v, flag);
+            return 0;
+        });
+    }
 };
 
 primarysst *create_primarysst(int filenumber);
