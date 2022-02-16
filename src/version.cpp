@@ -134,12 +134,12 @@ void versionset::apply(versionedit *edit){
             basetable *t = current_->ssts[i][j];
             if(edit->delfiles.count(t)!=0){
                 fprintf(stderr, "apply: ignore deleted sst-%d\n", t->file_number);
-                t->unref();
                 continue;
             }
             for(; k<added.size(); ++k){
                 if(added[k]->smallest < t->smallest){
                     neo->ssts[i].push_back(added[k]);
+                    added[k]->ref();
                     fprintf(stderr, "apply: add added sst-%d \n", added[k]->file_number);
                 } else {
                     break;
@@ -147,9 +147,11 @@ void versionset::apply(versionedit *edit){
             }
             fprintf(stderr, "apply: add original sst-%d\n", t->file_number);
             neo->ssts[i].push_back(t);
+            t->ref();
         }
         for(; k<added.size(); ++k){
             neo->ssts[i].push_back(added[k]);
+            added[k]->ref();
             fprintf(stderr, "apply: add added sst-%d \n", added[k]->file_number);
         }
     }
