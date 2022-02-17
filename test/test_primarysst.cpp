@@ -4,7 +4,7 @@
 
 void test(){
     const int COUNT = 10;
-    primarysst tab;
+    primarysst tab(1000);
     tab.create("./prisst.dat");
     
     for(int i=0; i<COUNT; ++i){

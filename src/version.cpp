@@ -69,7 +69,7 @@ void version::calculate(){
     crownd_score = 0.0;
     crownd_level = -1;
     for(int i=0; i<MAX_LEVELS; ++i){
-        int total = 0;
+        double total = 0.0;
         for(int j=0; j<ssts[i].size(); ++j){
             total += ssts[i][j]->filesize();
         }
@@ -79,6 +79,7 @@ void version::calculate(){
             crownd_level = i;
         }
     }
+    fprintf(stderr, "after calculate crownd score:%f, level:%d\n", crownd_score, crownd_level);
 }
 
 versionset::versionset():
@@ -133,19 +134,19 @@ void versionset::apply(versionedit *edit){
         for(int j=0; j<current_->ssts[i].size(); ++j){
             basetable *t = current_->ssts[i][j];
             if(edit->delfiles.count(t)!=0){
-                fprintf(stderr, "apply: ignore deleted sst-%d\n", t->file_number);
+                fprintf(stderr, "apply: ignore deleted sst-%d, [%s, %s]\n", t->file_number, t->smallest.c_str(), t->largest.c_str());
                 continue;
             }
             for(; k<added.size(); ++k){
                 if(added[k]->smallest < t->smallest){
                     neo->ssts[i].push_back(added[k]);
                     added[k]->ref();
-                    fprintf(stderr, "apply: add added sst-%d \n", added[k]->file_number);
+                    fprintf(stderr, "apply: add added sst-%d, [%s, %s]\n", added[k]->file_number, added[k]->smallest.c_str(), added[k]->largest.c_str());
                 } else {
                     break;
                 }
             }
-            fprintf(stderr, "apply: add original sst-%d\n", t->file_number);
+            fprintf(stderr, "apply: add original sst-%d, [%s, %s]\n", t->file_number, t->smallest.c_str(), t->largest.c_str());
             neo->ssts[i].push_back(t);
             t->ref();
         }

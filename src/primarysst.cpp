@@ -15,7 +15,7 @@ int primarysst::restoremeta(){
         datoffset = meta.datoffset;
         char *ckey, *cval;
         loadkv(mem+datoffset, &ckey, &cval);
-        kvtuple t = {meta.seqno, ckey, cval, meta.flag};
+        kvtuple t(meta.seqno, ckey, cval, meta.flag);
         codemap.insert(std::make_pair(meta.hashcode, t));
     }
     return 0;
@@ -116,8 +116,11 @@ int primarysst::put(const uint64_t seqno, const std::string &key, const std::str
 
     char *ckey = mem+datoffset+sizeof(int);
     char *cval = mem+datoffset+sizeof(int)+keylen+sizeof(int);
-    codemap.insert(std::make_pair(hashcode, kvtuple{seqno, ckey, cval, flag}));
 
+    kvtuple t(seqno, ckey, cval, flag);
+    codemap.insert(std::make_pair(hashcode, t));
+
+    file_size += sizeof(int)+keylen+sizeof(int)+vallen + sizeof(meta);
     uplimit(key);
     return 0;
 }

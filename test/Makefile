@@ -14,4 +14,4 @@ all:
 		-std=c++14 \
 		-I../src 
 clean:
-	rm -rf run data/
+	rm -rf run* data/

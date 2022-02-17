@@ -115,7 +115,7 @@ public:
         }
 
         iterator &next(){
-            idxoffset += sizeof(int)*4;
+            idxoffset += sizeof(rowmeta);
             return *this;
         }
 
@@ -124,15 +124,14 @@ public:
         }
 
         bool operator<(iterator &other){
-            kvtuple kva = **this;
-            kvtuple kvb = *other;
+            kvtuple kva, kvb;
+            this->parse(kva);
+            other.parse(kvb);
             return strcmp(kva.ckey, kvb.ckey) <0;
         }
 
-        const kvtuple operator*() const {
-            kvtuple record;
+        void parse(kvtuple &record) const {
             table->peek(idxoffset, record);
-            return record;
         }
     };
 
@@ -152,9 +151,10 @@ public:
 
     static bool compare(const iterator &a, const iterator &b){
         //load from disk before compare
-        kvtuple kva = *a; 
-        kvtuple kvb = *b;
-        return strcmp(kva.ckey, kvb.ckey) <=0;
+        kvtuple kva, kvb;
+        a.parse(kva);
+        b.parse(kvb);
+        return strcmp(kva.ckey, kvb.ckey) > 0;
     }
 };
 

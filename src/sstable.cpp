@@ -79,7 +79,7 @@ int sstable::put(const uint64_t seqno, const std::string &key, const std::string
     const int keylen = key.size()+1;
     const int vallen = val.size()+1;
     const int datlen = sizeof(int) + keylen + sizeof(int) + vallen;
-    if(datoffset - idxoffset <= datlen+sizeof(int)*8){
+    if(datoffset - idxoffset <= datlen+sizeof(rowmeta)){
         return ERROR_SPACE_NOT_ENOUGH;
     }
 
@@ -97,6 +97,7 @@ int sstable::put(const uint64_t seqno, const std::string &key, const std::string
     pwrite(fd, (void*)&meta, sizeof(meta), idxoffset);
     idxoffset += sizeof(meta);
 
+    file_size += sizeof(int)+keylen+sizeof(int)+vallen + sizeof(meta);
     uplimit(key);
     return 0;
 }
@@ -105,7 +106,7 @@ int sstable::reset(const std::vector<kvtuple > &tuples){
     idxoffset = 0;
     datoffset = SST_LIMIT;
     for(auto it = tuples.begin(); it!=tuples.end(); ++it){
-        const kvtuple t = *it;
+        const kvtuple &t = *it;
         put(t.seqno, t.ckey, t.cval, t.flag);
     }
 
@@ -140,10 +141,10 @@ int sstable::peek(int idxoffset, kvtuple &record) {
         return -1;
     }
 
-    char data[meta.datlen];
-    pread(fd, (void*)data, meta.datlen, meta.datoffset);
+    record.buffer = new char[meta.datlen];
+    pread(fd, (void*)record.buffer, meta.datlen, meta.datoffset);
 
-    loadkv(data, &record.ckey, &record.cval);
+    loadkv(record.buffer, &record.ckey, &record.cval);
     record.flag = meta.flag;
     return 0;
 }
