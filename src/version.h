@@ -36,7 +36,14 @@ class version {
 public:
     version():
         vset(nullptr),
-        refnum(0){
+        refnum(0),
+        hot_sst(nullptr){
+    }
+
+    version(versionset *vs):
+        vset(vs),
+        refnum(0),
+        hot_sst(nullptr){
     }
 
     ~version(){
@@ -45,11 +52,6 @@ public:
                 ssts[i][j]->unref();
             }
         }
-    }
-
-    version(versionset *vs):
-        vset(vs),
-        refnum(0){
     }
 
     void ref(){
@@ -136,18 +138,12 @@ public:
     }
 
     void append(version *ver){
-        if(current_!=nullptr && ver!=nullptr){
-            fprintf(stderr, "roll up version, %d -> %d\n", current_->ssts[0].size(), ver->ssts[0].size());
-        }
-
         if(current_!=nullptr){
             current_->unref();
         }
 
-
         current_ = ver;
         ver->ref();
-
 
         //append current_ to tail
         ver->next = &verhead_;

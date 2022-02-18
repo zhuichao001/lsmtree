@@ -97,7 +97,8 @@ int sstable::put(const uint64_t seqno, const std::string &key, const std::string
     pwrite(fd, (void*)&meta, sizeof(meta), idxoffset);
     idxoffset += sizeof(meta);
 
-    file_size += sizeof(int)+keylen+sizeof(int)+vallen + sizeof(meta);
+    const int rowlen = sizeof(int)+keylen+sizeof(int)+vallen + sizeof(meta);
+    file_size += rowlen;
     uplimit(key);
     return 0;
 }

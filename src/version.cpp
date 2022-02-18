@@ -4,7 +4,7 @@ int max_level_size(int ln){
     if(ln==0){
         return 8 * SST_LIMIT;
     }
-    return int(pow(10,ln)) * SST_LIMIT;
+    return int(pow(10,ln)) * 8 * SST_LIMIT;
 }
 
 int version::get(const uint64_t seqno, const std::string &key, std::string &val){
@@ -99,10 +99,11 @@ compaction *versionset::plan_compact(){
 
     if (size_too_big) {
         int level = current_->crownd_level;
+        fprintf(stderr, "size too big, level:%d\n", level);
         c = new compaction(current_, level);
         for(int i=0; i < current_->ssts[level].size(); ++i){
             basetable *t = current_->ssts[level][i];
-            if(campact_poles_[i].empty() || t->smallest >= campact_poles_[i]){
+            if(campact_poles_[i].empty() || t->smallest >= campact_poles_[i]){ //TODO
                 c->inputs_[0].push_back(t);
                 break;
             }
@@ -113,14 +114,15 @@ compaction *versionset::plan_compact(){
             c->inputs_[0].push_back(t);
         }
     } else if(seek_too_many) {
+        fprintf(stderr, "seek too many, level:%d\n", current_->hot_sst->getlevel());
         c = new compaction(current_, current_->hot_sst->getlevel());
         c->inputs_[0].push_back(current_->hot_sst);
     } else {
         return nullptr;
     }
 
-    c->ver = current_;
-    c->ver->ref();
+    //c->ver = current_;
+    //c->ver->ref();
 
     c->settle_inputs();
     return c;
@@ -134,26 +136,26 @@ void versionset::apply(versionedit *edit){
         for(int j=0; j<current_->ssts[i].size(); ++j){
             basetable *t = current_->ssts[i][j];
             if(edit->delfiles.count(t)!=0){
-                fprintf(stderr, "apply: ignore deleted sst-%d, [%s, %s]\n", t->file_number, t->smallest.c_str(), t->largest.c_str());
+                //fprintf(stderr, "apply: ignore deleted sst-%d, [%s, %s]\n", t->file_number, t->smallest.c_str(), t->largest.c_str());
                 continue;
             }
             for(; k<added.size(); ++k){
                 if(added[k]->smallest < t->smallest){
                     neo->ssts[i].push_back(added[k]);
                     added[k]->ref();
-                    fprintf(stderr, "apply: add added sst-%d, [%s, %s]\n", added[k]->file_number, added[k]->smallest.c_str(), added[k]->largest.c_str());
+                    fprintf(stderr, "apply: add added sst-%d to level:%d [%s, %s]\n", added[k]->file_number, i, added[k]->smallest.c_str(), added[k]->largest.c_str());
                 } else {
                     break;
                 }
             }
-            fprintf(stderr, "apply: add original sst-%d, [%s, %s]\n", t->file_number, t->smallest.c_str(), t->largest.c_str());
+            //fprintf(stderr, "apply: add original sst-%d, [%s, %s]\n", t->file_number, t->smallest.c_str(), t->largest.c_str());
             neo->ssts[i].push_back(t);
             t->ref();
         }
         for(; k<added.size(); ++k){
             neo->ssts[i].push_back(added[k]);
             added[k]->ref();
-            fprintf(stderr, "apply: add added sst-%d \n", added[k]->file_number);
+            //fprintf(stderr, "apply: add added sst-%d \n", added[k]->file_number);
         }
     }
 

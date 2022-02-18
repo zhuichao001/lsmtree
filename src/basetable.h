@@ -7,7 +7,7 @@
 #include <string>
 #include "types.h"
 
-const int MAX_LEVELS = 8;
+const int MAX_LEVELS = 10;
 const int SST_LIMIT = 2<<10; //default sst size:2MB
 const int MAX_ALLOWED_SEEKS = SST_LIMIT / 2; //20480;  //max seeks before compaction
 
@@ -44,6 +44,8 @@ public:
         datoffset(SST_LIMIT),
         state(NORMAL),
         refnum(0),
+        file_number(0),
+        file_size(0),
         allowed_seeks(MAX_ALLOWED_SEEKS),
         smallest(64, '\xff'),
         largest(""){

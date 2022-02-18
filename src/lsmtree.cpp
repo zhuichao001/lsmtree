@@ -151,6 +151,10 @@ int lsmtree::del(const woptions &opt, const std::string &key){
 
 int lsmtree::minor_compact(){
     std::unique_lock<std::mutex> lock{mutex_};
+    if(immutab_==nullptr){
+        return -1;
+    }
+
     versionedit edit;
     primarysst *sst = create_primarysst(versions_->next_fnumber());
     immutab_->scan(versions_->last_sequence(), [=, &edit, &sst](const uint64_t seqno, const std::string &key, const std::string &val, int flag) ->int {
@@ -181,6 +185,8 @@ int lsmtree::major_compact(){
     if(c==nullptr){ //do nothing
         return 0;
     }
+
+    fprintf(stderr, "compaction dest level:%d\n", c->level()+1);
 
     versionedit edit;
     {
@@ -214,7 +220,6 @@ int lsmtree::major_compact(){
                 vec.push_back(it);
                 push_heap(vec.begin(), vec.end());
             }
-            fprintf(stderr, "will put %s:%s\n", t.ckey, t.cval);
             if(sst->put(t.seqno, std::string(t.ckey), std::string(t.cval), t.flag)==ERROR_SPACE_NOT_ENOUGH){
                 fprintf(stderr, "major compact into sst-%d range:[%s, %s]\n", sst->file_number, sst->smallest.c_str(), sst->largest.c_str());
                 sst = create_sst(destlevel, versions_->next_fnumber());
