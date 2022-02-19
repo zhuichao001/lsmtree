@@ -195,11 +195,13 @@ int lsmtree::major_compact(){
                 edit.remove(c->inputs_[i][j]);
                 basetable::iterator it = c->inputs_[i][j]->begin();
                 vec.push_back(it);
+                fprintf(stderr, "  major compact %d %d  sst-%d\n", i, j, c->inputs_[i][j]->file_number);
             }
         }
         if(vec.empty()){
             return 0;
         }
+
         fprintf(stderr, "major compact input:%d\n", vec.size());
 
         int destlevel = c->level()+1; //compact into next level
@@ -209,7 +211,7 @@ int lsmtree::major_compact(){
         make_heap(vec.begin(), vec.end(), basetable::compare);
         while(!vec.empty()){
             basetable::iterator it = vec.front();
-            pop_heap(vec.begin(), vec.end());
+            pop_heap(vec.begin(), vec.end(), basetable::compare);
             vec.pop_back(); //remove iterator
 
             kvtuple t;
@@ -217,17 +219,20 @@ int lsmtree::major_compact(){
             it.next();
             if(it.valid()){
                 vec.push_back(it);
-                push_heap(vec.begin(), vec.end());
+                push_heap(vec.begin(), vec.end(), basetable::compare);
             }
             fprintf(stderr, "  : %s %s\n", t.ckey, t.cval);
 
             if(sst->put(t.seqno, std::string(t.ckey), std::string(t.cval), t.flag)==ERROR_SPACE_NOT_ENOUGH){
                 fprintf(stderr, "major compact into sst-%d range:[%s, %s]\n", sst->file_number, sst->smallest.c_str(), sst->largest.c_str());
+                sst->print(t.seqno+1);//TODO
+
                 sst = create_sst(destlevel, versions_->next_fnumber());
                 edit.add(destlevel, sst);
                 sst->put(t.seqno, std::string(t.ckey), std::string(t.cval), t.flag);
             }
         }
+        sst->print(versions_->last_sequence());//TODO
         fprintf(stderr, "major compact into sst-%d range:[%s, %s]\n", sst->file_number, sst->smallest.c_str(), sst->largest.c_str());
     }
 

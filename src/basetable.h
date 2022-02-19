@@ -8,7 +8,7 @@
 #include "types.h"
 
 const int MAX_LEVELS = 9;
-const int SST_LIMIT = 1<<8; //default sst size:2MB
+const int SST_LIMIT = 1<<12; //default sst size:2MB
 const int MAX_ALLOWED_SEEKS = 5000; //SST_LIMIT / 20480;  //max seeks before compaction
 
 typedef struct{
@@ -81,6 +81,7 @@ public:
     void unref(){
         assert(refnum>=1);
         if(--refnum==0){
+            fprintf(stderr, " ::release sst-%d\n", file_number);
             delete this;
         }
     }
@@ -109,7 +110,7 @@ public:
 
     void print(int seqno){
         this->scan(seqno, [](const char *k, const char *v, int flag) -> int{
-            fprintf(stderr, "  %s:%s %d", k, v, flag);
+            fprintf(stderr, "  key:%s val:%s flag:%d\n", k, v, flag);
             return 0;
         });
     }

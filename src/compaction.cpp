@@ -11,6 +11,9 @@ void compaction::settle_inputs(){
 
     if (level_==0) {
         for(int i=0; i<ver->ssts[0].size(); ++i){
+            if(ver->ssts[0][i]==inputs_[0][0]){
+                continue;
+            }
             if(ver->ssts[0][i]->overlap(start, end)){
                 inputs_[1].push_back(ver->ssts[0][i]);
             }

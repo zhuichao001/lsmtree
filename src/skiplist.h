@@ -10,7 +10,7 @@
 #include <string>
 
 enum{
-    FLAG_VAL = 1,
+    FLAG_VAL = 0,
     FLAG_DEL = 1,
 };
 

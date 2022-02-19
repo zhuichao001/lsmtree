@@ -19,14 +19,14 @@ int version::get(const uint64_t seqno, const std::string &key, std::string &val)
         kvtuple tmp;
         primarysst *t = dynamic_cast<primarysst*>(ssts[0][j]);
         t->ref();
-        fprintf(stderr, "try find %s in level-%d sst-%d\n", key.c_str(), j, t->file_number);
 
+        fprintf(stderr, "try find in level-0 sst-%d, %s\n", t->file_number, tmp.ckey);
         int err = t->get(seqno, key, tmp);
         t->unref();
         if(err<0){
             continue;
         }
-        fprintf(stderr, "found in %d sst-%d, %s:%s\n", j, t->file_number, tmp.ckey, tmp.cval);
+        fprintf(stderr, "found in level-0 sst-%d, %s:%s\n", t->file_number, tmp.ckey, tmp.cval);
         if(tmp.seqno>res.seqno){
             res = tmp;
         }
@@ -42,22 +42,28 @@ int version::get(const uint64_t seqno, const std::string &key, std::string &val)
     }
 
     for(int i=1; i<MAX_LEVELS; ++i){
-        std::vector<basetable*>::iterator it = std::lower_bound(ssts[i].begin(), ssts[i].end(), key, 
-                [](const basetable *b, const std::string &k) { return b->smallest < k; });
-        if(it==ssts[i].end()){
-            continue;
-        }
-
-        sstable *t = dynamic_cast<sstable *>(*it);
-        t->ref();
-        int err = t->get(seqno, key, val);
-        t->unref();
-        if(err==0 || err==ERROR_KEY_DELETED){
-            t->allowed_seeks -= 1;
-            if(t->allowed_seeks==0){
-                hot_sst = t;
+        //std::vector<basetable*>::iterator it = std::lower_bound(ssts[i].begin(), ssts[i].end(), key, 
+        //        [](const basetable *b, const std::string &k) { return b->smallest < k; });
+        //if(it==ssts[i].end()){
+        //    continue;
+        //}
+        for(int j=0; j<ssts[i].size(); ++j){
+            sstable *t = dynamic_cast<sstable *>(ssts[i][j]);
+            if(key<t->smallest || key>t->largest){
+                continue;
             }
-            return 0;
+            t->ref();
+            fprintf(stderr, "try find in level-%d sst-%d, %s\n", i, t->file_number, key.c_str());
+            int err = t->get(seqno, key, val);
+            t->unref();
+            if(err==0 || err==ERROR_KEY_DELETED){
+                t->allowed_seeks -= 1;
+                if(t->allowed_seeks==0){
+                    hot_sst = t;
+                }
+                fprintf(stderr, "found in level-%d sst-%d, %s:%s\n", i, t->file_number, key.c_str(), val.c_str());
+                return 0;
+            }
         }
     }
     return -1;

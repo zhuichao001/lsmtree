@@ -12,25 +12,25 @@ bool compare(const vector<int>::iterator &a, const vector<int>::iterator &b){
 int test(){
     vector<vector<int>::iterator> vec;
 
-    vector<int> va {1, 3, 5 ,7};
-    vector<int> vb {2, 4, 6 ,8};
+    vector<int> va {1, 2, 3, 4};
+    vector<int> vb {5, 6, 7, 8};
+    vector<int> vc {9, 10, 11, 12};
 
     vec.push_back(va.begin());
     vec.push_back(vb.begin());
+    vec.push_back(vc.begin());
 
     make_heap(vec.begin(), vec.end(), compare);
     while(!vec.empty()){
-        auto it = vec.front();
-        int d = *it;
+        int d = *vec[0];
         fprintf(stderr, "%d \n", d);
-        pop_heap(vec.begin(), vec.end());
-        vec.pop_back();
-        ++it;
-        if(d<=6){
-            vec.push_back(it);
+        pop_heap(vec.begin(), vec.end(), compare);
+        ++vec[vec.size()-1];
+        if(d%4!=0){
             push_heap(vec.begin(), vec.end(), compare);
+        }else{
+            vec.pop_back();
         }
-        //sort_heap(vec.begin(), vec.end(), compare);
     }
 
     return 0;

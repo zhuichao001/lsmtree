@@ -2,7 +2,7 @@
 #include "lsmtree.h"
 
 void test0(){
-    const int COUNT = 900;
+    const int COUNT = 5000;
     lsmtree db;
     woptions wopt;
     roptions ropt;

@@ -5,9 +5,11 @@
 
 sstable *gen_sst(int start, int end){
     sstable * sst = new sstable(1, 1001);
-    sst->create("./sst.dat");
+    char path[128];
+    sprintf(path, "./sst-%d-%d.dat", start, end);
+    sst->create(path);
     
-    for(int i=start; i<end; ++i){
+    for(int i=start; i<=end; ++i){
         char k[128];
         char v[128];
         sprintf(k, "key_%d", i);
@@ -24,9 +26,16 @@ sstable *gen_sst(int start, int end){
 }
 
 void test(){
-    sstable *ta = gen_sst(1,4);
-    sstable *tb = gen_sst(5,8);
-    sstable *tc = gen_sst(9,12);
+    sstable *ta = gen_sst(1,3);
+    ta->print(999999);
+    fprintf(stderr, "--------------\n");
+    sstable *tb = gen_sst(4,6);
+    sstable *tc = gen_sst(7,9);
+
+    tb->print(999999);
+    fprintf(stderr, "--------------\n");
+    tc->print(999999);
+    fprintf(stderr, "--------------\n");
 
     std::vector<basetable::iterator> vec{ta->begin(), tb->begin(), tc->begin()};
 
@@ -39,7 +48,7 @@ void test(){
         make_heap(vec.begin(), vec.end(), basetable::compare);
         while(!vec.empty()){
             basetable::iterator it = vec.front();
-            pop_heap(vec.begin(), vec.end());
+            pop_heap(vec.begin(), vec.end(), basetable::compare);
             vec.pop_back(); //remove iterator
 
             kvtuple t;
@@ -47,7 +56,7 @@ void test(){
             it.next();
             if(it.valid()){
                 vec.push_back(it);
-                push_heap(vec.begin(), vec.end());
+                push_heap(vec.begin(), vec.end(), basetable::compare);
             }
             fprintf(stderr, "  : %s %s\n", t.ckey, t.cval);
 
