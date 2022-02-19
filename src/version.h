@@ -79,7 +79,8 @@ public:
 
 
 class versionedit{
-private:
+//private:
+public:
     friend  class versionset;
     std::set<basetable*> delfiles;
     std::vector<basetable*> addfiles[MAX_LEVELS];
@@ -137,7 +138,7 @@ public:
         return current_;
     }
 
-    void append(version *ver){
+    void appoint(version *ver){
         if(current_!=nullptr){
             current_->unref();
         }

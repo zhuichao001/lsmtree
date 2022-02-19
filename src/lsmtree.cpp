@@ -84,24 +84,25 @@ int lsmtree::get(const roptions &opt, const std::string &key, std::string &val){
 
     {
         int err = cur->get(seqno, key, val);
-        schedule_compaction();
         cur->unref();
+        schedule_compaction();
         fprintf(stderr, "err:%d, version get %s:%s\n", err, key.c_str(), val.c_str());
         return err;
     }
 }
 
 void lsmtree::schedule_compaction(){
-    if(immutab_!=nullptr){
-        backstage.post([this]{this->minor_compact();});
-        return;
-    }
-
-    //TODO: deal manual compaction
-    if(versions_->need_compact()){
-        backstage.post([this]{this->major_compact();});
-        return;
-    }
+    backstage.post([this]{
+        {
+            std::unique_lock<std::mutex> lock{mutex_};
+            if(immutab_!=nullptr){
+                this->minor_compact();
+            }else if(versions_->need_compact()){
+                this->major_compact();
+            }
+        }
+        schedule_compaction();
+    });
 }
 
 int lsmtree::sweep_space(){
@@ -150,7 +151,6 @@ int lsmtree::del(const woptions &opt, const std::string &key){
 }
 
 int lsmtree::minor_compact(){
-    std::unique_lock<std::mutex> lock{mutex_};
     if(immutab_==nullptr){
         return -1;
     }
@@ -176,7 +176,6 @@ int lsmtree::minor_compact(){
 
     level0_cv_.notify_all();
 
-    schedule_compaction();
     return 0;
 }
 
@@ -220,6 +219,8 @@ int lsmtree::major_compact(){
                 vec.push_back(it);
                 push_heap(vec.begin(), vec.end());
             }
+            fprintf(stderr, "  : %s %s\n", t.ckey, t.cval);
+
             if(sst->put(t.seqno, std::string(t.ckey), std::string(t.cval), t.flag)==ERROR_SPACE_NOT_ENOUGH){
                 fprintf(stderr, "major compact into sst-%d range:[%s, %s]\n", sst->file_number, sst->smallest.c_str(), sst->largest.c_str());
                 sst = create_sst(destlevel, versions_->next_fnumber());
@@ -233,7 +234,6 @@ int lsmtree::major_compact(){
     versions_->apply(&edit);
     versions_->current()->calculate();
 
-    schedule_compaction();
     return 0;
 }
 

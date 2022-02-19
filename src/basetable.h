@@ -7,9 +7,9 @@
 #include <string>
 #include "types.h"
 
-const int MAX_LEVELS = 10;
-const int SST_LIMIT = 2<<10; //default sst size:2MB
-const int MAX_ALLOWED_SEEKS = SST_LIMIT / 2; //20480;  //max seeks before compaction
+const int MAX_LEVELS = 9;
+const int SST_LIMIT = 1<<8; //default sst size:2MB
+const int MAX_ALLOWED_SEEKS = 5000; //SST_LIMIT / 20480;  //max seeks before compaction
 
 typedef struct{
     uint64_t seqno;
@@ -106,6 +106,13 @@ public:
     virtual int put(const uint64_t seqno, const std::string &key, const std::string &val, int flag=0) = 0;
     virtual int scan(const uint64_t seqno, std::function<int(const char* /*key*/, const char* /*val*/, int /*flag*/)> func) = 0;
     virtual int peek(int idxoffset, kvtuple &record) = 0;
+
+    void print(int seqno){
+        this->scan(seqno, [](const char *k, const char *v, int flag) -> int{
+            fprintf(stderr, "  %s:%s %d", k, v, flag);
+            return 0;
+        });
+    }
 
     class iterator{
         basetable *table;

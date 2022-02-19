@@ -79,6 +79,7 @@ int sstable::put(const uint64_t seqno, const std::string &key, const std::string
     const int keylen = key.size()+1;
     const int vallen = val.size()+1;
     const int datlen = sizeof(int) + keylen + sizeof(int) + vallen;
+
     if(datoffset - idxoffset <= datlen+sizeof(rowmeta)){
         return ERROR_SPACE_NOT_ENOUGH;
     }
