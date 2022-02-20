@@ -11,6 +11,7 @@ const int MAX_LEVELS = 9;
 const int SST_LIMIT = 1<<12; //default sst size:2MB
 const int MAX_ALLOWED_SEEKS = 5000; //SST_LIMIT / 20480;  //max seeks before compaction
 
+//used for sst formation
 typedef struct{
     uint64_t seqno;
     int hashcode;
@@ -18,6 +19,46 @@ typedef struct{
     int datlen;
     int flag;
 }rowmeta;
+
+//used for row data access
+class kvtuple{
+    char *buffer;
+public:
+    uint64_t seqno;
+    char *ckey;
+    char *cval;
+    int flag;
+
+    kvtuple():
+        seqno(0),
+        ckey(nullptr),
+        cval(nullptr),
+        flag(0),
+        buffer(nullptr){
+    }
+
+    kvtuple(uint64_t seq, char *k, char *v, int f):
+        seqno(seq),
+        ckey(k),
+        cval(v),
+        flag(f),
+        buffer(nullptr) {
+    }
+
+    void reserve(const int size){
+        buffer = new char[size];
+    }
+
+    char *data(){
+        return buffer;
+    }
+
+    ~kvtuple(){
+        if(buffer!=nullptr){
+            delete buffer;
+        }
+    }
+};
 
 class basetable{
 public:

@@ -15,7 +15,6 @@
 #include "hash.h"
 #include "fio.h"
 #include "encode.h"
-#include "types.h"
 
 
 class primarysst: public basetable{

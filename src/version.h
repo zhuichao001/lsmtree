@@ -5,7 +5,6 @@
 #include <algorithm>
 #include <set>
 #include "options.h"
-#include "types.h"
 #include "basetable.h"
 #include "primarysst.h"
 #include "sstable.h"

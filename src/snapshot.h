@@ -2,7 +2,6 @@
 #define _LSMTREE_SNAPSHOT_H_
 
 #include <stdint.h>
-#include "types.h"
 
 typedef uint64_t serialnum;
 

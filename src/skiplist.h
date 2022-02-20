@@ -8,15 +8,11 @@
 #include <iostream>
 #include <atomic>
 #include <string>
+#include "types.h"
 
-enum{
-    FLAG_VAL = 0,
-    FLAG_DEL = 1,
-};
-
-class skiplist;
 
 class node {
+    class skiplist;
     friend class skiplist;
 public:
     std::string key;
