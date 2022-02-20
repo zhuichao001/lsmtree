@@ -143,10 +143,10 @@ int sstable::peek(int idxoffset, kvtuple &record) {
         return -1;
     }
 
-    record.buffer = new char[meta.datlen];
-    pread(fd, (void*)record.buffer, meta.datlen, meta.datoffset);
+    record.reserve(meta.datlen);
+    pread(fd, (void*)record.data(), meta.datlen, meta.datoffset);
 
-    loadkv(record.buffer, &record.ckey, &record.cval);
+    loadkv(record.data(), &record.ckey, &record.cval);
     record.flag = meta.flag;
     return 0;
 }

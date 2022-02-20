@@ -5,13 +5,12 @@
 
 
 class kvtuple{
+    char *buffer;
 public:
     uint64_t seqno;
     char *ckey;
     char *cval;
     int flag;
-
-    char *buffer;
 
     kvtuple():
         seqno(0),
@@ -27,6 +26,14 @@ public:
         cval(v),
         flag(f),
         buffer(nullptr) {
+    }
+
+    void reserve(const int size){
+        buffer = new char[size];
+    }
+
+    char *data(){
+        return buffer;
     }
 
     ~kvtuple(){
