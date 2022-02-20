@@ -237,6 +237,22 @@ int lsmtree::major_compact(){
     return 0;
 }
 
+int lsmtree::write(const wbatch &bat){
+    bat.scan([this](const char *key, const char *val, const int flag)->int{
+        if(sweep_space()){
+            fprintf(stderr, "failed shift space for write batch.\n");
+            return -1;
+        }
+        int seqno = versions_->add_sequence(1);
+        if(flag==FLAG_VAL){
+            return mutab_->put(seqno, key, val);
+        }else{
+            return mutab_->del(seqno, key);
+        }
+    });
+    return 0;
+}
+
 snapshot * lsmtree::get_snapshot(){
     return snapshots_.create(versions_->last_sequence());
 }
@@ -244,3 +260,4 @@ snapshot * lsmtree::get_snapshot(){
 int lsmtree::release_snapshot(snapshot *snap){
     return snapshots_.destroy(snap);
 }
+
