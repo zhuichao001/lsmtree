@@ -18,11 +18,9 @@ class version;
 class compaction{
 public:
     std::vector<basetable *> inputs_[2];
-    version *ver;
     int level_;
 
-    compaction(version *cur, int lev):
-        ver(cur),
+    compaction(int lev):
         level_(lev){
     }
 
@@ -31,7 +29,7 @@ public:
     }
 
     //TODO: optimize
-    void settle_inputs();
+    void settle_inputs(version *ver);
 
     int level(){
         return level_;

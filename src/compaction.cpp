@@ -1,7 +1,7 @@
 #include "compaction.h"
 #include "version.h"
 
-void compaction::settle_inputs(){
+void compaction::settle_inputs(version *ver){
     if (level_>=MAX_LEVELS-1) {
         return;
     }

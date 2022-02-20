@@ -104,7 +104,7 @@ compaction *versionset::plan_compact(){
     if (size_too_big) {
         int level = current_->crownd_level;
         fprintf(stderr, "size too big, level:%d\n", level);
-        c = new compaction(current_, level);
+        c = new compaction(level);
         for(int i=0; i < current_->ssts[level].size(); ++i){
             basetable *t = current_->ssts[level][i];
             if(campact_poles_[i].empty() || t->smallest >= campact_poles_[i]){ //TODO
@@ -119,16 +119,13 @@ compaction *versionset::plan_compact(){
         }
     } else if(seek_too_many) {
         fprintf(stderr, "seek too many, level:%d\n", current_->hot_sst->getlevel());
-        c = new compaction(current_, current_->hot_sst->getlevel());
+        c = new compaction(current_->hot_sst->getlevel());
         c->inputs_[0].push_back(current_->hot_sst);
     } else {
         return nullptr;
     }
 
-    //c->ver = current_;
-    //c->ver->ref();
-
-    c->settle_inputs();
+    c->settle_inputs(current_);
     return c;
 }
 
@@ -160,9 +157,6 @@ void versionset::apply(versionedit *edit){
             fprintf(stderr, "apply: add added sst-%d to level:%d [%s, %s]\n", added[k]->file_number, i, added[k]->smallest.c_str(), added[k]->largest.c_str());
         }
     }
-
-    fprintf(stderr, "|||current size:%d, added size:%d, new size:%d\n", 
-            current_->ssts[0].size(), edit->addfiles[0].size(), neo->ssts[0].size());
 
     this->appoint(neo);
 }
