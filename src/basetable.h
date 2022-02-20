@@ -115,16 +115,17 @@ public:
         return lower <= upper;
     }
 
-    void ref(){
-        ++refnum;
+    int ref(){
+        return ++refnum;
     }
 
-    void unref(){
+    int unref(){
         assert(refnum>=1);
         if(--refnum==0){
             fprintf(stderr, " ::release sst-%d\n", file_number);
             delete this;
         }
+        return refnum;
     }
 
     int filesize(){

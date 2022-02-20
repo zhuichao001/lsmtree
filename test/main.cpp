@@ -31,7 +31,7 @@ void test0(){
         std::cout << " query " << k << ", hashcode:" << hash(k, strlen(k)) <<std::endl;
         db.get(ropt, k, val);
         if(std::string(v)==val){
-            std::cerr<< "yes same:" <<k <<std::endl;
+            std::cerr<< "yes same! key:" <<k <<std::endl;
         }else{
             std::cerr<< "not same!" << k << ":" << val << ", expect:" << v << std::endl;
         }

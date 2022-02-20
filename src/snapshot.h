@@ -2,6 +2,7 @@
 #define _LSMTREE_SNAPSHOT_H_
 
 #include <stdint.h>
+#include <mutex>
 
 typedef uint64_t serialnum;
 
@@ -23,6 +24,7 @@ private:
 class snapshotlist{
 private:
     snapshot head_;
+    std::mutex mutex_;
 
 public:
     snapshotlist():
@@ -32,6 +34,7 @@ public:
     }
 
     snapshot *create(serialnum sn){
+        std::unique_lock<std::mutex> lock{mutex_};
         snapshot *shot = new snapshot(sn);
 
         //append to tail
@@ -43,10 +46,19 @@ public:
     }
 
     int destroy(const snapshot *shot){
+        std::unique_lock<std::mutex> lock{mutex_};
         shot->prev_->next_ = shot->next_;
         shot->next_->prev_ = shot->prev_;
         delete shot;
         return 0;
+    }
+
+    int smallest_sn(){
+        std::unique_lock<std::mutex> lock{mutex_};
+        if(head_.prev_==&head_){
+            return -1;
+        }
+        return head_.prev_->sequence();
     }
 
     bool empty(){ return head_.next_==&head_; }
