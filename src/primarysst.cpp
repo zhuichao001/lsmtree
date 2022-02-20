@@ -138,7 +138,6 @@ int primarysst::get(const uint64_t seqno, const std::string &key, kvtuple &res){
             res = t;
             return SUCCESS;
         }
-        fprintf(stderr, "found kvtuple, seqno:%d, seqno:%d, key:%s, val:%s,flag:%d %d, %d\n", seqno, t.seqno, t.ckey, t.cval, t.flag, key==t.ckey, t.flag==FLAG_VAL);
     }
     return ERROR_KEY_NOTEXIST;
 }
@@ -153,7 +152,7 @@ int primarysst::get(const uint64_t seqno, const std::string &key, std::string &v
     return SUCCESS;
 }
 
-int primarysst::scan(const uint64_t seqno, std::function<int(const char*, const char*, int)> func){
+int primarysst::scan(const uint64_t seqno, std::function<int(const int, const char*, const char*, int)> func){
     for(int pos=0; pos<idxoffset; pos+=sizeof(rowmeta)){
         const rowmeta meta = *(rowmeta*)(mem+pos);
         if(meta.seqno > seqno){
@@ -162,7 +161,7 @@ int primarysst::scan(const uint64_t seqno, std::function<int(const char*, const 
 
         char *ckey, *cval;
         loadkv(mem+meta.datoffset, &ckey, &cval);
-        func(ckey, cval, meta.flag);
+        func(meta.seqno, ckey, cval, meta.flag);
     }
     return 0;
 }
@@ -178,6 +177,7 @@ int primarysst::peek(int idxoffset, kvtuple &record) {
     }
 
     loadkv(mem+meta.datoffset, &record.ckey, &record.cval);
+    record.seqno = meta.seqno;
     record.flag = meta.flag;
     return 0;
 }

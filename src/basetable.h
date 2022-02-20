@@ -146,12 +146,12 @@ public:
 
     virtual int get(const uint64_t seqno, const std::string &key, std::string &val) = 0;
     virtual int put(const uint64_t seqno, const std::string &key, const std::string &val, int flag=0) = 0;
-    virtual int scan(const uint64_t seqno, std::function<int(const char* /*key*/, const char* /*val*/, int /*flag*/)> func) = 0;
+    virtual int scan(const uint64_t seqno, std::function<int(const int /*seq*/, const char* /*key*/, const char* /*val*/, int /*flag*/)> func) = 0;
     virtual int peek(int idxoffset, kvtuple &record) = 0;
 
     void print(int seqno){
-        this->scan(seqno, [](const char *k, const char *v, int flag) -> int{
-            fprintf(stderr, "  key:%s val:%s flag:%d\n", k, v, flag);
+        this->scan(seqno, [seqno](const int seq, const char *k, const char *v, int flag) -> int{
+            fprintf(stderr, "  seq:%d<%d key:%s val:%s flag:%d\n", seq, seqno, k, v, flag);
             return 0;
         });
     }

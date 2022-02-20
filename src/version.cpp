@@ -103,7 +103,7 @@ compaction *versionset::plan_compact(){
 
     if (size_too_big) {
         int level = current_->crownd_level;
-        fprintf(stderr, "size too big, level:%d\n", level);
+        fprintf(stderr, "plan to compact because size too big, level:%d\n", level);
         c = new compaction(level);
         for(int i=0; i < current_->ssts[level].size(); ++i){
             basetable *t = current_->ssts[level][i];
@@ -118,7 +118,7 @@ compaction *versionset::plan_compact(){
             c->inputs_[0].push_back(t);
         }
     } else if(seek_too_many) {
-        fprintf(stderr, "seek too many, level:%d\n", current_->hot_sst->getlevel());
+        fprintf(stderr, "plan to compact because seek too many, level:%d\n", current_->hot_sst->getlevel());
         c = new compaction(current_->hot_sst->getlevel());
         c->inputs_[0].push_back(current_->hot_sst);
     } else {

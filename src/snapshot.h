@@ -33,6 +33,7 @@ public:
 
     snapshot *create(serialnum sn){
         snapshot *shot = new snapshot(sn);
+
         //append to tail
         shot->next_ = &head_;
         shot->prev_ = head_.prev_;

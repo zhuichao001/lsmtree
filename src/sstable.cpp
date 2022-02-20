@@ -56,6 +56,7 @@ int sstable::get(const uint64_t seqno, const std::string &key, std::string &val)
         pread(fd, &meta, sizeof(meta), pos);
         if(hashcode==meta.hashcode){
             if(meta.seqno>seqno){
+                //fprintf(stderr, "same hashcode, but seqno too big %d, param seqno:%d\n", meta.seqno, seqno);
                 continue;
             }
             if(meta.flag==FLAG_DEL){
@@ -68,6 +69,7 @@ int sstable::get(const uint64_t seqno, const std::string &key, std::string &val)
             loadkv(data, &ckey, &cval);
             if(strcmp(ckey, key.c_str())==0){
                 val.assign(cval);
+                //fprintf(stderr, "success found, %s:%s %d, seqno:%d\n", ckey, cval, meta.seqno, seqno);
                 return 0;
             }
         }
@@ -117,7 +119,7 @@ int sstable::reset(const std::vector<kvtuple > &tuples){
     return 0;
 }
 
-int sstable::scan(const uint64_t seqno, std::function<int(const char*, const char*, int)> func){
+int sstable::scan(const uint64_t seqno, std::function<int(const int, const char*, const char*, int)> func){
     rowmeta meta;
     for(int pos=0; pos<idxoffset; pos+=sizeof(meta)){
         pread(fd, (void*)&meta, sizeof(meta), pos);
@@ -130,7 +132,7 @@ int sstable::scan(const uint64_t seqno, std::function<int(const char*, const cha
 
         char *ckey, *cval;
         loadkv(data, &ckey, &cval);
-        func(ckey, cval, meta.flag);
+        func(meta.seqno, ckey, cval, meta.flag);
     }
     return 0;
 }
@@ -147,6 +149,7 @@ int sstable::peek(int idxoffset, kvtuple &record) {
     pread(fd, (void*)record.data(), meta.datlen, meta.datoffset);
 
     loadkv(record.data(), &record.ckey, &record.cval);
+    record.seqno = meta.seqno;
     record.flag = meta.flag;
     return 0;
 }

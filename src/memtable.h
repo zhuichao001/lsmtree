@@ -37,7 +37,7 @@ public:
             if(cur->key!=key){
                 return -1;
             }
-            if(cur->sequence_number>seqno){
+            if(cur->seqno>seqno){
                 cur = cur->forwards[0];
             }else{
                 val = cur->val;
@@ -49,7 +49,7 @@ public:
 
     int put(const uint64_t seqno, const std::string &key, const std::string &val, const uint8_t flag=FLAG_VAL){
         size_ += key.size() + val.size() + sizeof(int)*4;
-        node *neo = table_.insert(key, val, seqno, flag);
+        node *neo = table_.insert(seqno, key, val, flag);
         assert(neo!=nullptr);
         //neo->print();
         return 0;
@@ -70,7 +70,7 @@ public:
     int scan(const uint64_t seqno, std::function<int(uint64_t seqno, const std::string, const std::string, int)> visit){
         for(skiplist::iterator it = table_.begin(); it!=table_.end(); ++it){
             node * p = *it;
-            visit(seqno, p->key, p->val, p->value_type);
+            visit(p->seqno, p->key, p->val, p->value_type);
         }
         return 0;
     }

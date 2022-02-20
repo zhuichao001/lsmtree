@@ -53,6 +53,7 @@ int lsmtree::open(const options *opt, const char *basedir){
 
 int lsmtree::get(const roptions &opt, const std::string &key, std::string &val){
     int seqno = (opt.snap==nullptr)? versions_->last_sequence():opt.snap->sequence();
+    fprintf(stderr, "lsmtree::get seqno:%d\n", seqno);
     version *cur = nullptr; 
     {
         std::unique_lock<std::mutex> lock{mutex_};
@@ -160,6 +161,7 @@ int lsmtree::minor_compact(){
     immutab_->scan(versions_->last_sequence(), [=, &edit, &sst](const uint64_t seqno, const std::string &key, const std::string &val, int flag) ->int {
         if(sst->put(seqno, key, val, flag)==ERROR_SPACE_NOT_ENOUGH){
             fprintf(stderr, "minor compact into sst-%d range:[%s, %s]\n", sst->file_number, sst->smallest.c_str(), sst->largest.c_str());
+            //sst->print(versions_->last_sequence());
             edit.add(0, sst);
             sst = create_primarysst(versions_->next_fnumber());
             sst->put(seqno, key, val, flag);
@@ -167,6 +169,7 @@ int lsmtree::minor_compact(){
         return 0;
     });
     fprintf(stderr, "minor compact into sst-%d range:[%s, %s]\n", sst->file_number, sst->smallest.c_str(), sst->largest.c_str());
+    //sst->print(versions_->last_sequence());
     edit.add(0, sst);
 
     versions_->apply(&edit);
@@ -220,15 +223,15 @@ int lsmtree::major_compact(){
 
             if(sst->put(t.seqno, std::string(t.ckey), std::string(t.cval), t.flag)==ERROR_SPACE_NOT_ENOUGH){
                 fprintf(stderr, "major compact into sst-%d range:[%s, %s]\n", sst->file_number, sst->smallest.c_str(), sst->largest.c_str());
-                //sst->print(t.seqno+1);
+                //sst->print(versions_->last_sequence());
 
                 sst = create_sst(destlevel, versions_->next_fnumber());
                 edit.add(destlevel, sst);
                 sst->put(t.seqno, std::string(t.ckey), std::string(t.cval), t.flag);
             }
         }
-        sst->print(versions_->last_sequence());//TODO
         fprintf(stderr, "major compact into sst-%d range:[%s, %s]\n", sst->file_number, sst->smallest.c_str(), sst->largest.c_str());
+        //sst->print(versions_->last_sequence());//TODO
     }
 
     versions_->apply(&edit);
@@ -253,7 +256,7 @@ int lsmtree::write(const wbatch &bat){
     return 0;
 }
 
-snapshot * lsmtree::get_snapshot(){
+snapshot * lsmtree::create_snapshot(){
     return snapshots_.create(versions_->last_sequence());
 }
 

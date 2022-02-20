@@ -74,7 +74,7 @@ public:
     int put(const woptions &opt, const std::string &key, const std::string &val);
     int write(const wbatch &bat);
 
-    snapshot * get_snapshot();
+    snapshot * create_snapshot();
     int release_snapshot(snapshot *snap);
 };
 

@@ -17,19 +17,19 @@ class node {
 public:
     std::string key;
     std::string val;
-    uint64_t sequence_number;
+    const uint64_t seqno; //sequence number
     uint8_t value_type;
     int height;
     node **forwards;  // next for i'th layer
 
-    node(const int level, const std::string &k, const std::string &v="", const uint64_t seqno=0, const int flagcode=0):
+    node(const int level, const uint64_t seq, const std::string &k, const std::string &v="", const int flag=FLAG_VAL):
         height(level),
+        seqno(seq),
         key(k),
         val(v),
-        sequence_number(seqno),
-        value_type(flagcode){
+        value_type(flag){
         assert(level>0);
-        //fprintf(stderr, "    new level:%d, key:%s, val:%s\n", level, k.c_str(), v.c_str());
+        //fprintf(stderr, "    new level:%d, seqno:%d, key:%s, val:%s, flag:%d\n", level, seqno, k.c_str(), v.c_str(), flag);
         forwards = new node *[height];
         assert(forwards!=nullptr);
         for(int i=0; i<height; ++i){
@@ -95,8 +95,8 @@ public:
         BRANCHING(branch){
         length = 0;
         height = 1;
-        head = new node(MAXHEIGHT, "");
-        nil = new node(MAXHEIGHT, std::string(256, '\xff')); 
+        head = new node(MAXHEIGHT, 0, "");
+        nil = new node(MAXHEIGHT, 0, std::string(256, '\xff')); 
         for(int i=0; i<MAXHEIGHT; ++i){
             head->forwards[i] = nil;
         }
@@ -124,7 +124,7 @@ public:
 
     node *search(const std::string &k);
 
-    node *insert(const std::string &k, const std::string &v, const uint64_t seqno, const int flag=0);
+    node *insert(const uint64_t seqno, const std::string &k, const std::string &v, const int flag=FLAG_VAL);
 
     void print();
 
