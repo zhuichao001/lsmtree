@@ -19,7 +19,6 @@ int lsmtree::open(const options *opt, const char *basedir){
 
     mutab_ = new memtable;
     mutab_->ref();
-    versions_ = new versionset;
 
     return 0;
 
@@ -52,7 +51,7 @@ int lsmtree::open(const options *opt, const char *basedir){
 }
 
 int lsmtree::get(const roptions &opt, const std::string &key, std::string &val){
-    int seqno = (opt.snap==nullptr)? versions_->last_sequence():opt.snap->sequence();
+    int seqno = (opt.snap==nullptr)? versions_.last_sequence():opt.snap->sequence();
     fprintf(stderr, "lsmtree::get seqno:%d\n", seqno);
     version *cur = nullptr; 
     {
@@ -61,11 +60,12 @@ int lsmtree::get(const roptions &opt, const std::string &key, std::string &val){
         if(immutab_!=nullptr){
             immutab_->ref();
         }
-        cur = versions_->current();
+        cur = versions_.current();
         cur->ref();
     }
 
     {
+        val = "";
         int err = mutab_->get(seqno, key, val);
         mutab_->unref();
         if(err==0){
@@ -98,7 +98,7 @@ void lsmtree::schedule_compaction(){
             std::unique_lock<std::mutex> lock{mutex_};
             if(immutab_!=nullptr){
                 this->minor_compact();
-            }else if(versions_->need_compact()){
+            }else if(versions_.need_compact()){
                 this->major_compact();
             }
         }
@@ -130,7 +130,7 @@ int lsmtree::put(const woptions &opt, const std::string &key, const std::string 
         fprintf(stderr, "shift space error\n");
         return -1;
     }
-    int seqno = versions_->add_sequence(1);
+    int seqno = versions_.add_sequence(1);
     if(mutab_->put(seqno, key, val)<0){ //TODO: USE Writebatch
         return -1;
     }
@@ -143,7 +143,7 @@ int lsmtree::del(const woptions &opt, const std::string &key){
         return -1;
     }
 
-    int seqno = versions_->add_sequence(1);
+    int seqno = versions_.add_sequence(1);
     if(mutab_->del(seqno, key)<0){
         return -1;
     }
@@ -157,23 +157,23 @@ int lsmtree::minor_compact(){
     }
 
     versionedit edit;
-    primarysst *sst = create_primarysst(versions_->next_fnumber());
-    immutab_->scan(versions_->last_sequence(), [=, &edit, &sst](const uint64_t seqno, const std::string &key, const std::string &val, int flag) ->int {
+    primarysst *sst = create_primarysst(versions_.next_fnumber());
+    immutab_->scan(versions_.last_sequence(), [=, &edit, &sst](const uint64_t seqno, const std::string &key, const std::string &val, int flag) ->int {
         if(sst->put(seqno, key, val, flag)==ERROR_SPACE_NOT_ENOUGH){
             fprintf(stderr, "minor compact into sst-%d range:[%s, %s]\n", sst->file_number, sst->smallest.c_str(), sst->largest.c_str());
-            //sst->print(versions_->last_sequence());
+            //sst->print(versions_.last_sequence());
             edit.add(0, sst);
-            sst = create_primarysst(versions_->next_fnumber());
+            sst = create_primarysst(versions_.next_fnumber());
             sst->put(seqno, key, val, flag);
         }
         return 0;
     });
     fprintf(stderr, "minor compact into sst-%d range:[%s, %s]\n", sst->file_number, sst->smallest.c_str(), sst->largest.c_str());
-    //sst->print(versions_->last_sequence());
+    //sst->print(versions_.last_sequence());
     edit.add(0, sst);
 
-    versions_->apply(&edit);
-    versions_->current()->calculate();
+    versions_.apply(&edit);
+    versions_.current()->calculate();
     immutab_->unref();
     immutab_ = nullptr;
 
@@ -183,7 +183,7 @@ int lsmtree::minor_compact(){
 }
 
 int lsmtree::major_compact(){
-    compaction *c = versions_->plan_compact();
+    compaction *c = versions_.plan_compact();
     if(c==nullptr){ //do nothing
         return 0;
     }
@@ -203,14 +203,17 @@ int lsmtree::major_compact(){
             return 0;
         }
 
-        int destlevel = c->level()+1; //compact into next level
-        sstable *sst = create_sst(destlevel, versions_->next_fnumber());
+        const int destlevel = c->level()+1; //compact into next level
+        sstable *sst = create_sst(destlevel, versions_.next_fnumber());
         edit.add(destlevel, sst);
 
-        make_heap(vec.begin(), vec.end(), basetable::compare);
+        const int total=vec.size(); 
+        int produced = 0;
+        std::string lastkey;
+        make_heap(vec.begin(), vec.end(), basetable::compare_gt);
         while(!vec.empty()){
             basetable::iterator it = vec.front();
-            pop_heap(vec.begin(), vec.end(), basetable::compare);
+            pop_heap(vec.begin(), vec.end(), basetable::compare_gt);
             vec.pop_back(); //remove iterator
 
             kvtuple t;
@@ -218,24 +221,32 @@ int lsmtree::major_compact(){
             it.next();
             if(it.valid()){
                 vec.push_back(it);
-                push_heap(vec.begin(), vec.end(), basetable::compare);
+                push_heap(vec.begin(), vec.end(), basetable::compare_gt);
             }
+
+            if(produced>0 && lastkey==t.ckey && t.seqno<snapshots_.smallest_sn()){
+                fprintf(stderr, "major compact drop kvtuple %s:%s %d\n", t.ckey, t.cval, t.flag);
+                continue;
+            }
+
+            ++produced;
+            lastkey = t.ckey;
 
             if(sst->put(t.seqno, std::string(t.ckey), std::string(t.cval), t.flag)==ERROR_SPACE_NOT_ENOUGH){
                 fprintf(stderr, "major compact into sst-%d range:[%s, %s]\n", sst->file_number, sst->smallest.c_str(), sst->largest.c_str());
-                //sst->print(versions_->last_sequence());
+                //sst->print(versions_.last_sequence());
 
-                sst = create_sst(destlevel, versions_->next_fnumber());
+                sst = create_sst(destlevel, versions_.next_fnumber());
                 edit.add(destlevel, sst);
                 sst->put(t.seqno, std::string(t.ckey), std::string(t.cval), t.flag);
             }
         }
-        fprintf(stderr, "major compact into sst-%d range:[%s, %s]\n", sst->file_number, sst->smallest.c_str(), sst->largest.c_str());
-        //sst->print(versions_->last_sequence());//TODO
+        fprintf(stderr, "major compact into sst-%d range:[%s, %s], produced:%d->%d\n", sst->file_number, sst->smallest.c_str(), sst->largest.c_str(), total, produced);
+        //sst->print(versions_.last_sequence());//TODO
     }
 
-    versions_->apply(&edit);
-    versions_->current()->calculate();
+    versions_.apply(&edit);
+    versions_.current()->calculate();
 
     return 0;
 }
@@ -246,7 +257,7 @@ int lsmtree::write(const wbatch &bat){
             fprintf(stderr, "failed shift space for write batch.\n");
             return -1;
         }
-        int seqno = versions_->add_sequence(1);
+        int seqno = versions_.add_sequence(1);
         if(flag==FLAG_VAL){
             return mutab_->put(seqno, key, val);
         }else{
@@ -257,7 +268,7 @@ int lsmtree::write(const wbatch &bat){
 }
 
 snapshot * lsmtree::create_snapshot(){
-    return snapshots_.create(versions_->last_sequence());
+    return snapshots_.create(versions_.last_sequence());
 }
 
 int lsmtree::release_snapshot(snapshot *snap){

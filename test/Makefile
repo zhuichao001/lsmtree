@@ -64,5 +64,20 @@ snapshot:
 		-lpthread \
 		-std=c++14 \
 		-I../src
+update:
+	g++ -g -o run_test_update \
+		test_update.cpp \
+		../src/version.cpp \
+		../src/sstable.cpp \
+		../src/primarysst.cpp \
+		../src/hash.cpp \
+		../src/fio.cpp \
+		../src/encode.cpp \
+		../src/compaction.cpp \
+		../src/lsmtree.cpp \
+		../src/skiplist.cpp \
+		-lpthread \
+		-std=c++14 \
+		-I../src
 clean:
 	rm -rf run* data/

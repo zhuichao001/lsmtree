@@ -26,12 +26,14 @@ node *skiplist::insert(const uint64_t seqno, const std::string &k, const std::st
         updates[i] = cur;
     }
 
+    /*
     //update
     if(cur->forwards[0]->key==k) {
         cur->forwards[0]->val = v;
         cur->forwards[0]->value_type = flag;
         return cur->forwards[0];
     } 
+    */
     
     //insert
     const int H = this->level();

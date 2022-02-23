@@ -201,12 +201,16 @@ public:
         return it;
     }
 
-    static bool compare(const iterator &a, const iterator &b){
+    static bool compare_gt(const iterator &a, const iterator &b){
         //load from disk before compare
         kvtuple kva, kvb;
         a.parse(kva);
         b.parse(kvb);
-        return strcmp(kva.ckey, kvb.ckey) > 0;
+        int delta = strcmp(kva.ckey, kvb.ckey);
+        if(delta!=0){
+            return delta;
+        }
+        return kva.seqno < kvb.seqno;
     }
 };
 

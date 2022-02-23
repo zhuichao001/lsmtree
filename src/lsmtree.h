@@ -31,7 +31,7 @@ class lsmtree{
     std::mutex mutex_;
     std::condition_variable level0_cv_;
 
-    versionset *versions_;
+    versionset versions_;
     snapshotlist snapshots_;
 
     char pripath[128];
@@ -52,8 +52,8 @@ class lsmtree{
 
 public:
     lsmtree():
-        immutab_(nullptr),
-        versions_(nullptr){
+        mutab_(nullptr),
+        immutab_(nullptr){
     }
 
     ~lsmtree(){
