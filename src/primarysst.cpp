@@ -182,19 +182,3 @@ int primarysst::peek(int idxoffset, kvtuple &record) {
     record.flag = meta.flag;
     return 0;
 }
-
-/*
-primarysst *create_primarysst(int filenumber){
-    primarysst *pri = new primarysst(filenumber);
-
-    char path[128];
-    sprintf(path, "data/pri/\0"); //TODO
-    if(!exist(path)){
-        mkdir(path);
-    }
-
-    sprintf(path, "data/pri/%09d.pri\0", filenumber);
-    pri->create(path);
-    return pri;
-}
-*/

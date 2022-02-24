@@ -12,7 +12,7 @@
 #include <assert.h>
 #include <stdio.h>
 
-//fix-sized threads pool
+//threads pool with fixd-size 
 class thread_pool_t{
 public:
     typedef std::function<void()> task_t;

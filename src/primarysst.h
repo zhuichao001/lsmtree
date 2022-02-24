@@ -37,6 +37,4 @@ public:
 
 };
 
-primarysst *create_primarysst(int filenumber);
-
 #endif
