@@ -4,26 +4,32 @@
 
 
 thread_pool_t backstage(1);
+std::string basedir;
 
 const int TIER_SST_COUNT(int level){
     return TIER_PRI_COUNT * pow(10, level);
 }
 
-int lsmtree::open(const options *opt, const char *basedir){
-    sprintf(pripath, "%s/pri/\0", basedir);
-    sprintf(sstpath, "%s/sst/\0", basedir);
-    if(!exist(basedir)){
+int lsmtree::open(const options *opt, const char *dirpath){
+    basedir = dirpath;
+    char pripath[64];
+    sprintf(pripath, "%s/pri/\0", dirpath);
+    if(!exist(pripath)){
         mkdir(pripath);
-        mkdir(sstpath);
+    }
+    for(int lev=1; lev<=MAX_LEVELS; ++lev){
+        char path[64];
+        sprintf(path, "data/sst/%d/\0", lev);
+        if(!exist(path)){
+            ::mkdir(path);
+        }
     }
 
     mutab_ = new memtable;
     mutab_->ref();
-
     return 0;
 
     /*
-
     std::vector<std::string> files; //temporary
     ls(pripath, files);
     for(auto path: files){
@@ -157,13 +163,15 @@ int lsmtree::minor_compact(){
     }
 
     versionedit edit;
-    primarysst *sst = create_primarysst(versions_.next_fnumber());
+    primarysst *sst = new primarysst(versions_.next_fnumber());
+    sst->open();
     immutab_->scan(versions_.last_sequence(), [=, &edit, &sst](const uint64_t seqno, const std::string &key, const std::string &val, int flag) ->int {
         if(sst->put(seqno, key, val, flag)==ERROR_SPACE_NOT_ENOUGH){
             fprintf(stderr, "minor compact into sst-%d range:[%s, %s]\n", sst->file_number, sst->smallest.c_str(), sst->largest.c_str());
             //sst->print(versions_.last_sequence());
             edit.add(0, sst);
-            sst = create_primarysst(versions_.next_fnumber());
+            sst = new primarysst(versions_.next_fnumber());
+            sst->open();
             sst->put(seqno, key, val, flag);
         }
         return 0;
@@ -204,7 +212,7 @@ int lsmtree::major_compact(){
         }
 
         const int destlevel = c->level()+1; //compact into next level
-        sstable *sst = create_sst(destlevel, versions_.next_fnumber());
+        sstable *sst = new sstable(destlevel, versions_.next_fnumber());
         edit.add(destlevel, sst);
 
         const int total=vec.size(); 
@@ -236,7 +244,7 @@ int lsmtree::major_compact(){
                 fprintf(stderr, "major compact into sst-%d range:[%s, %s]\n", sst->file_number, sst->smallest.c_str(), sst->largest.c_str());
                 //sst->print(versions_.last_sequence());
 
-                sst = create_sst(destlevel, versions_.next_fnumber());
+                sst = new sstable(destlevel, versions_.next_fnumber());
                 edit.add(destlevel, sst);
                 sst->put(t.seqno, std::string(t.ckey), std::string(t.cval), t.flag);
             }

@@ -26,35 +26,36 @@ primarysst::primarysst(const int fileno):
     mem(nullptr){
     level = 0;
     file_number = fileno;
+    sprintf(path, "data/pri/%09d.pri\0", fileno);
 }
 
 primarysst::~primarysst(){
     ::munmap(mem, SST_LIMIT);
 }
 
-int primarysst::create(const char *path){
-    this->path = path;
-    int fd = ::open(path, O_RDWR | O_CREAT , 0664);
-    if(fd<0) {
-        fprintf(stderr, "open file error: %s\n", strerror(errno));
-        ::close(fd);
-        return -1;
-    }
-    ::ftruncate(fd, SST_LIMIT);
+int primarysst::open(){
+    if(!exist(path)){
+        int fd = ::open(path, O_RDWR | O_CREAT , 0664);
+        if(fd<0) {
+            fprintf(stderr, "open file error: %s\n", strerror(errno));
+            ::close(fd);
+            return -1;
+        }
+        ::ftruncate(fd, SST_LIMIT);
+        mem = (char*)::mmap(nullptr, SST_LIMIT, PROT_READ|PROT_WRITE, MAP_SHARED, fd, 0);
+        if(mem == MAP_FAILED) {
+            fprintf(stderr, "mmap error: %s\n", strerror(errno));
+            ::close(fd);
+            return -1;
+        }
 
-    mem = (char*)::mmap(nullptr, SST_LIMIT, PROT_READ|PROT_WRITE, MAP_SHARED, fd, 0);
-    if(mem == MAP_FAILED) {
-        fprintf(stderr, "mmap error: %s\n", strerror(errno));
         ::close(fd);
-        return -1;
+        return 0;
     }
-
-    ::close(fd);
-    return 0;
+    return load();
 }
 
-int primarysst::load(const char *path){
-    this->path = path;
+int primarysst::load(){
     int fd = ::open(path, O_RDWR, 0664);
     if(fd<0) {
         fprintf(stderr, "open file error: %s\n", strerror(errno));
@@ -182,6 +183,7 @@ int primarysst::peek(int idxoffset, kvtuple &record) {
     return 0;
 }
 
+/*
 primarysst *create_primarysst(int filenumber){
     primarysst *pri = new primarysst(filenumber);
 
@@ -195,3 +197,4 @@ primarysst *create_primarysst(int filenumber){
     pri->create(path);
     return pri;
 }
+*/

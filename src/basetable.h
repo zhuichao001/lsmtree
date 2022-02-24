@@ -8,8 +8,8 @@
 #include "types.h"
 
 const int MAX_LEVELS = 9;
-const int SST_LIMIT = 1<<12; //default sst size:2MB
-const int MAX_ALLOWED_SEEKS = 5000; //SST_LIMIT / 20480;  //max seeks before compaction
+const int SST_LIMIT = 2<<20; //default sst size:2MB
+const int MAX_ALLOWED_SEEKS = SST_LIMIT / 20480;  //max seeks before compaction
 
 //used for sst formation
 typedef struct{
@@ -63,7 +63,7 @@ public:
 class basetable{
 public:
     int level;
-    std::string path;
+    char path[64];
 
     int idxoffset;
     int datoffset;
@@ -101,7 +101,7 @@ public:
     }
 
     int remove(){
-        ::remove(path.c_str());
+        ::remove(path);
         return 0;
     }
 
@@ -141,8 +141,9 @@ public:
         }
     }
 public:
-    virtual int create(const char *path) = 0;
-    virtual int load(const char *path) = 0;
+    //virtual int create(const char *path) = 0;
+    //virtual int load(const char *path) = 0;
+    virtual int open() = 0;
     virtual int close() = 0;
 
     virtual int get(const uint64_t seqno, const std::string &key, std::string &val) = 0;

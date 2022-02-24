@@ -49,7 +49,8 @@ int version::get(const uint64_t seqno, const std::string &key, std::string &val)
         //}
         for(int j=0; j<ssts[i].size(); ++j){
             sstable *t = dynamic_cast<sstable *>(ssts[i][j]);
-            if(key<t->smallest || key>t->largest){
+            vset->cache_.insert(std::string(t->path), t);
+            if(key<t->smallest || key>t->largest){ //TODO: smallest/largest saved in manifest
                 continue;
             }
             t->ref();
@@ -89,7 +90,7 @@ void version::calculate(){
 versionset::versionset():
     next_fnumber_(10000),
     last_sequence_(1),
-    current_(nullptr){
+    verhead_(this) {
     verhead_.prev = &verhead_;
     verhead_.next = &verhead_;
     this->appoint(new version(this));
@@ -143,19 +144,28 @@ void versionset::apply(versionedit *edit){
                 if(added[k]->smallest < t->smallest){
                     neo->ssts[i].push_back(added[k]);
                     added[k]->ref();
+                    cache_.insert(std::string(added[k]->path), dynamic_cast<sstable*>(added[k]));
                     fprintf(stderr, "apply: add added sst-%d to level:%d [%s, %s]\n", added[k]->file_number, i, added[k]->smallest.c_str(), added[k]->largest.c_str());
                 } else {
                     break;
                 }
             }
             neo->ssts[i].push_back(t);
+            cache_.insert(std::string(t->path), dynamic_cast<sstable*>(t));
             t->ref();
         }
         for(; k<added.size(); ++k){
             neo->ssts[i].push_back(added[k]);
             added[k]->ref();
+            cache_.insert(std::string(added[k]->path), dynamic_cast<sstable*>(added[k]));
             fprintf(stderr, "apply: add added sst-%d to level:%d [%s, %s]\n", added[k]->file_number, i, added[k]->smallest.c_str(), added[k]->largest.c_str());
         }
+    }
+
+    for(auto it=edit->delfiles.begin(); it!=edit->delfiles.end(); ++it){
+        basetable *t = *it;
+        cache_.evict(std::string(t->path));
+        t->unref();
     }
 
     this->appoint(neo);

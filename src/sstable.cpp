@@ -1,51 +1,68 @@
 #include "sstable.h"
 
+extern std::string basedir;
+
 sstable::sstable(const int lev, const int fileno):
     basetable(){
     level = lev;
     file_number = fileno;
+    sprintf(path, "%s/sst/%d/%09d.sst\0", basedir.c_str(), lev, fileno);
 }
 
-int sstable::create(const char *path){
-    this->path = path;
-    fd = ::open(path, O_RDWR | O_CREAT , 0664);
-    if(fd<0) {
-        fprintf(stderr, "open file error: %s\n", strerror(errno));
-        ::close(fd);
-        return -1;
-    }
-    ::ftruncate(fd, SST_LIMIT);
-    return 0;
-}
-
-int sstable::load(const char *path){
-    this->path = path;
-    fd = ::open(path, O_RDWR, 0664);
-    if(fd<0) {
-        fprintf(stderr, "open file error: %s\n", strerror(errno));
-        ::close(fd);
-        return -1;
-    }
-
-    idxoffset = 0;
-    datoffset = SST_LIMIT;
-
-    rowmeta meta;
-    for(int pos=0; ;pos+=sizeof(meta)){
-        pread(fd, (void*)&meta, sizeof(meta), pos);
-
-        idxoffset = pos;
-        if(meta.hashcode==0 && meta.datoffset==0 && meta.datlen==0 && meta.flag==0){
-            break;
+int sstable::open(){
+    if(!exist(path)){
+        fd = ::open(path, O_RDWR | O_CREAT , 0664);
+        if(fd<0) {
+            fprintf(stderr, "open file error: %s\n", strerror(errno));
+            ::close(fd);
+            return -1;
         }
-        datoffset = meta.datoffset;
+        ::ftruncate(fd, SST_LIMIT);
+        return 0;
+    } else {
+        fd = ::open(path, O_RDWR, 0664);
+        if(fd<0) {
+            fprintf(stderr, "open file error: %s\n", strerror(errno));
+            ::close(fd);
+            return -1;
+        }
+        return 0;
     }
-    return 0;
 }
 
 int sstable::close(){
     ::close(fd);
     return 0;
+}
+
+//cached in: idxoffset, datoffset, codemap
+void sstable::cache(){
+    if(incache){
+        return;
+    }
+    idxoffset = 0;
+    datoffset = SST_LIMIT;
+    rowmeta meta;
+    for(int pos=0; ;pos+=sizeof(meta)){
+        pread(fd, (void*)&meta, sizeof(meta), pos);
+        idxoffset = pos;
+        if(meta.hashcode==0 && meta.datoffset==0){
+            break;
+        }
+        codemap.insert(std::make_pair(meta.hashcode, meta.datoffset));
+        datoffset = meta.datoffset;
+    }
+    incache = true; 
+}
+
+void sstable::uncache(){
+    if(!incache){
+        return;
+    }
+    idxoffset = 0;
+    datoffset = SST_LIMIT;
+    codemap.~multimap();
+    incache = false;
 }
 
 int sstable::get(const uint64_t seqno, const std::string &key, std::string &val){
@@ -156,18 +173,4 @@ int sstable::peek(int idxoffset, kvtuple &record) {
 
 int sstable::endindex(){
     return idxoffset;
-}
-
-sstable *create_sst(int level, int filenumber){
-    sstable *sst = new sstable(level, filenumber);
-
-    char path[128];
-    sprintf(path, "data/sst/%d/\0", level);
-    if(!exist(path)){
-        mkdir(path);
-    }
-
-    sprintf(path, "data/sst/%d/%09d.sst\0", level, filenumber);
-    sst->create(path);
-    return sst;
 }

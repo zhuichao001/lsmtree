@@ -33,11 +33,13 @@ class version {
     double crownd_score;
     int crownd_level;
 public:
+    /*
     version():
         vset(nullptr),
         refnum(0),
         hot_sst(nullptr){
     }
+    */
 
     version(versionset *vs):
         vset(vs),
@@ -99,7 +101,6 @@ class versionset {
 private:
     std::string dbpath_;
     const options *opt_;
-    tablecache *cache_;
 
     int next_fnumber_; //TODO: atomic
     int last_sequence_;
@@ -110,6 +111,8 @@ private:
     std::string campact_poles_[MAX_LEVELS]; //next campact start-key for every level
 
 public:
+    tablecache cache_;
+
     versionset();
 
     int next_fnumber(){

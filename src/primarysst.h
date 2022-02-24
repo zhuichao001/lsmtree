@@ -26,8 +26,8 @@ public:
     primarysst(const int fileno);
     ~primarysst();
 
-    int create(const char *path);
-    int load(const char *path);
+    int open();
+    int load();
     int close();
 public:
     int get(const uint64_t seqno, const std::string &key, kvtuple &res);
