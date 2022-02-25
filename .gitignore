@@ -9,4 +9,4 @@ pids
 *.seed
 data
 run
-
+run_test_*

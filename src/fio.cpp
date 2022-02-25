@@ -117,6 +117,14 @@ int read_file(const int fd, std::string &data) {
     return 0;
 }
 
+int read_file(const char* path, std::string &data){
+    if(!exist(path)){
+        return -1;
+    }
+    int fd = ::open(path, O_RDWR, 0664);
+    return read_file(fd, data);
+}
+
 int write_file(const int fd, const std::string &data) {
     if(fd<0){
         return -1;

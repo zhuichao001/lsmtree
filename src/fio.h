@@ -29,6 +29,8 @@ int create(const char* path);
 
 int read_file(const int fd, std::string &data);
 
+int read_file(const char* path, std::string &data);
+
 int write_file(const int fd, const std::string &data);
 
 int append_file(const int fd, const std::string &data);

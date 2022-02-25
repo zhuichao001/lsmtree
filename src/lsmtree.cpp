@@ -17,42 +17,25 @@ int lsmtree::open(const options *opt, const char *dirpath){
     if(!exist(pripath)){
         mkdir(pripath);
     }
+
     for(int lev=1; lev<=MAX_LEVELS; ++lev){
         char path[64];
         sprintf(path, "data/sst/%d/\0", lev);
         if(!exist(path)){
-            ::mkdir(path);
+            mkdir(path);
         }
+    }
+
+    char metapath[64];
+    sprintf(metapath, "%s/meta/\0", dirpath);
+    if(!exist(metapath)){
+        mkdir(metapath);
+    }else{
+        versions_.recover(metapath);
     }
 
     mutab_ = new memtable;
     mutab_->ref();
-    return 0;
-
-    /*
-    std::vector<std::string> files; //temporary
-    ls(pripath, files);
-    for(auto path: files){
-        primarysst *pri = new primarysst;
-        pri->load(path.c_str());
-        levels[0].push_back(pri);
-    }
-
-    files.clear();
-
-    ls(sstpath, files);
-    for(auto path: files){
-        int level = atoi(path.c_str()+strlen(sstpath));
-        sstable *sst = new sstable(level);
-        sst->load(path.c_str());
-        levels[level-1].push_back(sst);
-    }
-
-    //sort sst in every level 
-    for(int i=0; i<MAX_LEVELS; ++i){
-        sort_sst(i);
-    }
-    */
     return 0;
 }
 
