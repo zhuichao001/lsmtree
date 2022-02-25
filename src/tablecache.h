@@ -1,7 +1,7 @@
 #ifndef _LSMTREE_TABLECACHE_H_
 #define _LSMTREE_TABLECACHE_H_
 
-#include "lfu.h"
+#include "lru.h"
 
 class cached{
 public:
@@ -10,7 +10,7 @@ public:
 };
 
 class tablecache{
-    LFUCache<cached *> lfu;
+    LRUCache<std::string, cached *> lfu;
 public:
     tablecache():
         lfu(512){ //default:512 sstable cached
