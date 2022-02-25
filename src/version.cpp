@@ -170,3 +170,52 @@ void versionset::apply(versionedit *edit){
 
     this->appoint(neo);
 }
+
+int versionset::recover(const char *path){
+    if(!exist(path)){
+        mkdir(path);
+        return 0;
+    }
+
+    std::string manifest_path;
+    char current[64];
+    sprintf(current, "%s/CURRENT", path);
+    if(!exist(current)){
+        int fd = ::open(path, O_RDWR | O_CREAT , 0664);
+        ::close(fd);
+        return 0;
+    } else {
+        int fd = ::open(path, O_RDWR, 0664);
+        read_file(fd, manifest_path);
+    }
+
+    if(!exist(manifest_path.c_str())){
+        return -1;
+    }
+
+    int fd = ::open(manifest_path.c_str(), O_RDWR, 0664);
+    if(fd<0){
+        return -1;
+    }
+
+    versionedit edit;
+
+    std::string data;
+    data.reserve(fsize(fd));
+    read_file(fd, data);
+    char *token = strtok(const_cast<char*>(data.c_str()), ";;;;;;\n");
+    while(token!=nullptr){
+        int level;
+        int fnumber;
+        char limit[2][64];
+        sscanf(token, "%d %d <%s,%s>", &level, &fnumber, limit[0], limit[1]);
+        sstable *sst = new sstable(level, fnumber, limit[0], limit[1]);
+        edit.add(level, sst);
+        std::string sstline = token;
+
+        token = strtok(nullptr, ";;;;;;\n");
+    }
+
+    apply(&edit);
+    return 0;
+}

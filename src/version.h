@@ -33,14 +33,6 @@ class version {
     double crownd_score;
     int crownd_level;
 public:
-    /*
-    version():
-        vset(nullptr),
-        refnum(0),
-        hot_sst(nullptr){
-    }
-    */
-
     version(versionset *vs):
         vset(vs),
         refnum(0),
@@ -98,47 +90,32 @@ public:
 
 
 class versionset {
-private:
     std::string dbpath_;
     const options *opt_;
 
-    int next_fnumber_; //TODO: atomic
+    int next_fnumber_;
     int last_sequence_;
     
     version verhead_;
     version *current_;
 
     std::string campact_poles_[MAX_LEVELS]; //next campact start-key for every level
-
 public:
     tablecache cache_;
 
     versionset();
 
-    int next_fnumber(){
-        return ++next_fnumber_;
-    }
+    int next_fnumber(){ return ++next_fnumber_; }
 
-    int last_fnumber(){
-        return next_fnumber_;
-    }
+    int last_fnumber(){ return next_fnumber_; }
 
-    void set_fnumber(int fno){
-        next_fnumber_ = fno;
-    }
+    void set_fnumber(int fno){ next_fnumber_ = fno; }
 
-    int last_sequence(){
-        return last_sequence_;
-    }
+    int last_sequence(){ return last_sequence_; }
 
-    int add_sequence(int cnt){
-        last_sequence_ += cnt;
-        return last_sequence_;
-    }
+    int add_sequence(int cnt){ last_sequence_ += cnt; return last_sequence_; }
 
-    version *current(){
-        return current_;
-    }
+    version *current(){ return current_; }
 
     void appoint(version *ver){
         if(current_!=nullptr){
@@ -155,14 +132,13 @@ public:
         verhead_.prev = ver;
     }
 
-    bool need_compact(){
-        version *v = current_;
-        return v->crownd_score>1 || v->hot_sst!=nullptr;
-    }
+    bool need_compact(){ return current_->crownd_score>1 || current_->hot_sst!=nullptr; }
 
     compaction *plan_compact();
 
     void apply(versionedit *edit);
+
+    int recover(const char *path);
 };
 
 #endif

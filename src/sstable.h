@@ -27,7 +27,7 @@ class sstable: public basetable, public cached {
     int peek(int idxoffset, kvtuple &record) ;
     int endindex();
 public:
-    sstable(const int lev, const int fileno);
+    sstable(const int lev, const int fileno, const char*leftkey=nullptr, const char *rightkey=nullptr);
     int open();
     int close();
     int reset(const std::vector<kvtuple > &tuples);

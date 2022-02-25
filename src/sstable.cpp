@@ -2,11 +2,18 @@
 
 extern std::string basedir;
 
-sstable::sstable(const int lev, const int fileno):
+sstable::sstable(const int lev, const int fileno, const char*leftkey, const char *rightkey):
     basetable(){
     level = lev;
     file_number = fileno;
     sprintf(path, "%s/sst/%d/%09d.sst\0", basedir.c_str(), lev, fileno);
+
+    if(leftkey!=nullptr){
+        smallest = leftkey;
+    }
+    if(rightkey!=nullptr){
+        largest = rightkey;
+    }
 }
 
 int sstable::open(){
