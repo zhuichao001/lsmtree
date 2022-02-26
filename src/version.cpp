@@ -172,11 +172,6 @@ void versionset::apply(versionedit *edit){
 }
 
 int versionset::recover(const char *path){
-    if(!exist(path)){ //meta dir
-        mkdir(path);
-        return 0;
-    }
-
     char current[64];
     sprintf(current, "%s/CURRENT", path);
     std::string manifest_path;
@@ -184,18 +179,12 @@ int versionset::recover(const char *path){
         return -1;
     }
 
-    if(!exist(manifest_path.c_str())){
-        return -1;
-    }
-    int fd = ::open(manifest_path.c_str(), O_RDWR, 0664);
-    if(fd<0){
+    versionedit edit;
+    std::string data;
+    if(read_file(manifest_path.c_str(), data)<0){
         return -1;
     }
 
-    versionedit edit;
-    std::string data;
-    data.reserve(fsize(fd));
-    read_file(fd, data);
     char *token = strtok(const_cast<char*>(data.c_str()), ";;;;;;\n");
     while(token!=nullptr){
         int level, fnumber;
@@ -207,7 +196,7 @@ int versionset::recover(const char *path){
 
         token = strtok(nullptr, ";;;;;;\n");
     }
-
     apply(&edit);
+    //TODO: remove other ssts not in edit
     return 0;
 }
