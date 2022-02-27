@@ -1,4 +1,6 @@
 #include "version.h"
+#include "clock.h"
+
 
 int max_level_size(int ln){
     if(ln==0){
@@ -169,11 +171,48 @@ void versionset::apply(versionedit *edit){
     }
 
     this->appoint(neo);
+    this->persist(neo->ssts);
 }
 
-int versionset::recover(const char *path){
+int versionset::persist(const std::vector<basetable*> ssts[MAX_LEVELS]){ 
+    char metapath[64];
+    sprintf(metapath, "%s/meta/\0", basedir.c_str());
+    if(!exist(metapath)){
+        mkdir(metapath);
+    }
+
+    char manifest_path[64];
+    sprintf(manifest_path, "%s/meta/MANIFEST-%ld\0", basedir.c_str(), get_time_nsec());
+    int fd = open_create(manifest_path);
+
+    for(int level=0; level<MAX_LEVELS; ++level) {
+        for(int j=0; j<ssts[level].size(); ++j){
+            basetable *t = ssts[level][j];
+            char line[256];
+            sprintf(line, "%d %d <%s,%s>\0", t->file_number, t->smallest, t->largest);
+            write_file(fd, line, strlen(line));
+        }
+    }
+    ::close(fd);
+
+    char temporary[64];
+    sprintf(temporary, "%s/.temporary\0", basedir.c_str());
+    write_file(temporary, metapath, strlen(metapath)); 
     char current[64];
-    sprintf(current, "%s/CURRENT", path);
+    sprintf(current, "%s/CURRENT", basedir.c_str());
+    return rename_file(temporary, current);
+}
+
+int versionset::recover(){
+    char metapath[64];
+    sprintf(metapath, "%s/meta/\0", basedir.c_str());
+    if(!exist(metapath)){
+        mkdir(metapath);
+        return 0;
+    }
+
+    char current[64];
+    sprintf(current, "%s/CURRENT\0", metapath);
     std::string manifest_path;
     if(read_file(current, manifest_path)<0){
         return -1;

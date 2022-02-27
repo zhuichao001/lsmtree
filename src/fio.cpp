@@ -127,13 +127,10 @@ int read_file(const char* path, std::string &data){
     return err;
 }
 
-int write_file(const int fd, const std::string &data) {
+int write_file(const int fd, const char *buf, int length) {
     if (fd<0) {
         return -1;
     }
-
-    const char *buf = data.c_str();
-    int length = data.size();
     int n;
     while (length>0 && (n = ::write(fd, buf, 4096))!=0){
         if (n == -1) {
@@ -146,8 +143,27 @@ int write_file(const int fd, const std::string &data) {
         buf += n;
         length -= n;
     }
-    ::close(fd);
     return 0;
+}
+
+int write_file(const int fd, const std::string &data) {
+    if (fd<0) {
+        return -1;
+    }
+
+    const char *buf = data.c_str();
+    int length = data.size();
+    return write_file(fd, buf, length);
+}
+
+int write_file(const char* path, const char *buf, const int length){
+    if (!exist(path)) {
+        return -1;
+    }
+    int fd = ::open(path, O_RDWR, 0664);
+    int err = write_file(fd, buf, length);
+    ::close(fd);
+    return err;
 }
 
 int append_file(const int fd, const std::string &data) {
@@ -170,7 +186,6 @@ int append_file(const int fd, const std::string &data) {
         length -=n;
         fprintf(stderr, "n:%d\n",n);
     }
-    ::close(fd);
     return 0;
 }
 
@@ -206,6 +221,12 @@ int copy_file(const char * src, const char * dst) {
     ::close(rfd);
     ::close(wfd);
     return 0;
+}
+
+int rename_file(const char * src, const char * dst) {
+    int fd = open(dst, O_DIRECTORY|O_RDONLY);
+    ::rename(src, dst);
+    return ::fsync(fd);
 }
 
 int mkdir(const char* path) {

@@ -26,13 +26,7 @@ int lsmtree::open(const options *opt, const char *dirpath){
         }
     }
 
-    char metapath[64];
-    sprintf(metapath, "%s/meta/\0", dirpath);
-    if(!exist(metapath)){
-        mkdir(metapath);
-    }else{
-        versions_.recover(metapath);
-    }
+    versions_.recover();
 
     mutab_ = new memtable;
     mutab_->ref();

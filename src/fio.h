@@ -31,11 +31,17 @@ int read_file(const int fd, std::string &data);
 
 int read_file(const char* path, std::string &data);
 
+int write_file(const int fd, const char *buf, int length);
+
 int write_file(const int fd, const std::string &data);
+
+int write_file(const char* path, const char *buf, const int length);
 
 int append_file(const int fd, const std::string &data);
 
 int copy_file(const char * src, const char * dst);
+
+int rename_file(const char * src, const char * dst);
 
 bool exist(const char *path);
 

@@ -11,10 +11,10 @@
 #include "compaction.h"
 #include "tablecache.h"
 
-class versionset;
-
+extern std::string basedir;
 int max_level_size(int ln);
 
+class versionset;
 class version {
     friend class versionset;
     friend class compaction;
@@ -138,7 +138,9 @@ public:
 
     void apply(versionedit *edit);
 
-    int recover(const char *path);
+    int persist(const std::vector<basetable*> ssts[MAX_LEVELS]);
+
+    int recover();
 };
 
 #endif
