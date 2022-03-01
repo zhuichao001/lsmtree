@@ -8,8 +8,8 @@
 #include "types.h"
 
 const int MAX_LEVELS = 9;
-const int SST_LIMIT = 2<<20; //default sst size:2MB
-const int MAX_ALLOWED_SEEKS = SST_LIMIT / 20480;  //max seeks before compaction
+const int SST_LIMIT = 2<<10; //default sst size:2MB
+const int MAX_ALLOWED_SEEKS = 50; //SST_LIMIT / 20480;  //max seeks before compaction
 
 //used for sst formation
 typedef struct{
@@ -122,7 +122,6 @@ public:
     int unref(){
         assert(refnum>=1);
         if(--refnum==0){
-            fprintf(stderr, " ::release sst-%d\n", file_number);
             delete this;
         }
         return refnum;
@@ -207,6 +206,8 @@ public:
         kvtuple kva, kvb;
         a.parse(kva);
         b.parse(kvb);
+        assert(kva.ckey!=nullptr);
+        assert(kvb.ckey!=nullptr);
         int delta = strcmp(kva.ckey, kvb.ckey);
         if(delta!=0){
             return delta;

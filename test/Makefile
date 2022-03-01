@@ -79,5 +79,13 @@ update:
 		-lpthread \
 		-std=c++14 \
 		-I../src
+cache:
+	g++ -g -o run_test_cache \
+		test_cache.cpp  \
+		../src/encode.cpp \
+		../src/hash.cpp \
+		../src/fio.cpp \
+		../src/sstable.cpp \
+		-I../src
 clean:
 	rm -rf run* data/

@@ -146,20 +146,26 @@ void versionset::apply(versionedit *edit){
                 if(added[k]->smallest < t->smallest){
                     neo->ssts[i].push_back(added[k]);
                     added[k]->ref();
-                    cache_.insert(std::string(added[k]->path), dynamic_cast<sstable*>(added[k]));
+                    if(i>0){
+                        cache_.insert(std::string(added[k]->path), dynamic_cast<sstable*>(added[k]));
+                    }
                     fprintf(stderr, "apply: add added sst-%d to level:%d [%s, %s]\n", added[k]->file_number, i, added[k]->smallest.c_str(), added[k]->largest.c_str());
                 } else {
                     break;
                 }
             }
             neo->ssts[i].push_back(t);
-            cache_.insert(std::string(t->path), dynamic_cast<sstable*>(t));
+            if(i>0){
+                cache_.insert(std::string(t->path), dynamic_cast<sstable*>(t));
+            }
             t->ref();
         }
         for(; k<added.size(); ++k){
             neo->ssts[i].push_back(added[k]);
             added[k]->ref();
-            cache_.insert(std::string(added[k]->path), dynamic_cast<sstable*>(added[k]));
+            if(i>0){
+                cache_.insert(std::string(added[k]->path), dynamic_cast<sstable*>(added[k]));
+            }
             fprintf(stderr, "apply: add added sst-%d to level:%d [%s, %s]\n", added[k]->file_number, i, added[k]->smallest.c_str(), added[k]->largest.c_str());
         }
     }
@@ -167,7 +173,7 @@ void versionset::apply(versionedit *edit){
     for(auto it=edit->delfiles.begin(); it!=edit->delfiles.end(); ++it){
         basetable *t = *it;
         cache_.evict(std::string(t->path));
-        t->unref();
+        //t->unref();
     }
 
     this->appoint(neo);
@@ -182,7 +188,7 @@ int versionset::persist(const std::vector<basetable*> ssts[MAX_LEVELS]){
     }
 
     char manifest_path[64];
-    sprintf(manifest_path, "%s/meta/MANIFEST-%ld\0", basedir.c_str(), get_time_nsec());
+    sprintf(manifest_path, "%s/meta/MANIFEST-%ld\0", basedir.c_str(), get_time_usec());
     int fd = open_create(manifest_path);
 
     for(int level=0; level<MAX_LEVELS; ++level) {
@@ -230,6 +236,7 @@ int versionset::recover(){
         char limit[2][64];
         sscanf(token, "%d %d <%s,%s>", &level, &fnumber, limit[0], limit[1]);
         sstable *sst = new sstable(level, fnumber, limit[0], limit[1]);
+        sst->open();
         edit.add(level, sst);
         std::string sstline = token;
 

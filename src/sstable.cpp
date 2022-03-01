@@ -21,7 +21,6 @@ int sstable::open(){
         fd = ::open(path, O_RDWR | O_CREAT , 0664);
         if(fd<0) {
             fprintf(stderr, "open file error: %s\n", strerror(errno));
-            ::close(fd);
             return -1;
         }
         ::ftruncate(fd, SST_LIMIT);
@@ -30,7 +29,6 @@ int sstable::open(){
         fd = ::open(path, O_RDWR, 0664);
         if(fd<0) {
             fprintf(stderr, "open file error: %s\n", strerror(errno));
-            ::close(fd);
             return -1;
         }
         return 0;
@@ -38,7 +36,10 @@ int sstable::open(){
 }
 
 int sstable::close(){
-    ::close(fd);
+    if(fd>0){
+        ::close(fd);
+    }
+    fd = -1;
     return 0;
 }
 
@@ -47,15 +48,23 @@ void sstable::cache(){
     if(incache){
         return;
     }
+    if(fd<0){
+        open();
+    }
     idxoffset = 0;
     datoffset = SST_LIMIT;
     rowmeta meta;
-    for(int pos=0; ;pos+=sizeof(meta)){
-        pread(fd, (void*)&meta, sizeof(meta), pos);
-        idxoffset = pos;
-        if(meta.hashcode==0 && meta.datoffset==0){
+    //loop break if meta is {0,0,0,0,0}
+    for(int pos=0; meta.datoffset!=0; pos+=sizeof(meta)){
+        if(pread(fd, (void*)&meta, sizeof(meta), pos) < 0){
+            fprintf(stderr, "cache::pread fd:%d pos:%d\n", fd, pos);
+            perror("pread error::");
+            return;
+        }
+        if(meta.seqno==0 && meta.hashcode && meta.datoffset){
             break;
         }
+        idxoffset = pos;
         codemap.insert(std::make_pair(meta.hashcode, meta.datoffset));
         datoffset = meta.datoffset;
     }
@@ -68,8 +77,10 @@ void sstable::uncache(){
     }
     idxoffset = 0;
     datoffset = SST_LIMIT;
-    codemap.~multimap();
+    std::multimap<int, int> _;
+    _.swap(codemap);
     incache = false;
+    this->close();
 }
 
 int sstable::get(const uint64_t seqno, const std::string &key, std::string &val){
@@ -80,7 +91,6 @@ int sstable::get(const uint64_t seqno, const std::string &key, std::string &val)
         pread(fd, &meta, sizeof(meta), pos);
         if(hashcode==meta.hashcode){
             if(meta.seqno>seqno){
-                //fprintf(stderr, "same hashcode, but seqno too big %d, param seqno:%d\n", meta.seqno, seqno);
                 continue;
             }
             if(meta.flag==FLAG_DEL){
@@ -93,7 +103,6 @@ int sstable::get(const uint64_t seqno, const std::string &key, std::string &val)
             loadkv(data, &ckey, &cval);
             if(strcmp(ckey, key.c_str())==0){
                 val.assign(cval);
-                //fprintf(stderr, "success found, %s:%s %d, seqno:%d\n", ckey, cval, meta.seqno, seqno);
                 return 0;
             }
         }
@@ -106,7 +115,7 @@ int sstable::put(const uint64_t seqno, const std::string &key, const std::string
     const int vallen = val.size()+1;
     const int datlen = sizeof(int) + keylen + sizeof(int) + vallen;
 
-    if(datoffset - idxoffset <= datlen+sizeof(rowmeta)){
+    if(datoffset - idxoffset <= datlen+sizeof(rowmeta)*2){
         return ERROR_SPACE_NOT_ENOUGH;
     }
 
@@ -117,12 +126,15 @@ int sstable::put(const uint64_t seqno, const std::string &key, const std::string
     memcpy(data+sizeof(int)+keylen+sizeof(int), val.c_str(), vallen);
 
     datoffset -= datlen;
-    pwrite(fd, data, datlen, datoffset);
+    if(pwrite(fd, data, datlen, datoffset)<0){
+        perror("put pwrite:");
+        return -1;
+    }
 
     const int hashcode = hash(key.c_str(), key.size());
     rowmeta meta = {seqno, hashcode, datoffset, datlen, flag};
-    pwrite(fd, (void*)&meta, sizeof(meta), idxoffset);
-    idxoffset += sizeof(meta);
+    pwrite(fd, (void*)&meta, sizeof(rowmeta), idxoffset);
+    idxoffset += sizeof(rowmeta);
 
     const int rowlen = sizeof(int)+keylen+sizeof(int)+vallen + sizeof(meta);
     file_size += rowlen;
@@ -138,7 +150,7 @@ int sstable::reset(const std::vector<kvtuple > &tuples){
         put(t.seqno, t.ckey, t.cval, t.flag);
     }
 
-    rowmeta meta = {0, 0,0,0,0}; // indicate ENDING
+    rowmeta meta = {0, 0, 0, 0, 0}; // indicate ENDING
     pwrite(fd, &meta, sizeof(meta), idxoffset);
     return 0;
 }
@@ -163,14 +175,21 @@ int sstable::scan(const uint64_t seqno, std::function<int(const int, const char*
 
 int sstable::peek(int idxoffset, kvtuple &record) {
     rowmeta meta;
-    pread(fd, &meta, sizeof(meta), idxoffset);
+    if(pread(fd, &meta, sizeof(meta), idxoffset)<0){
+        perror("sstable::peek idxoffset");
+        return -1;
+    }
 
     if(meta.hashcode==0 && meta.datoffset==0 && meta.datlen==0 && meta.flag==0){
         return -1;
     }
 
+    assert(meta.datlen>0);
     record.reserve(meta.datlen);
-    pread(fd, (void*)record.data(), meta.datlen, meta.datoffset);
+    if(pread(fd, (void*)record.data(), meta.datlen, meta.datoffset)<0){
+        perror("sstable::peek kvtuple");
+        return -1;
+    }
 
     loadkv(record.data(), &record.ckey, &record.cval);
     record.seqno = meta.seqno;

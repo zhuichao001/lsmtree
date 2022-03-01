@@ -1,14 +1,14 @@
 #include <time.h>
 
 
-long get_time_sec(){
-    static struct timespec ts;
+inline long get_time_sec(){
+    struct timespec ts;
     clock_gettime(CLOCK_MONOTONIC, &ts);
     return ts.tv_sec;
 }
 
-long get_time_nsec(){
-    static struct timespec ts;
+inline long get_time_nsec(){
+    struct timespec ts;
     /*
     CLOCK_REALTIME
         System-wide realtime clock. Setting this clock requires appropriate privileges.
@@ -21,4 +21,8 @@ long get_time_nsec(){
     */
     clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &ts);
     return ts.tv_nsec;
+}
+
+inline long get_time_usec(){
+    return get_time_sec()*1000+get_time_nsec()/1000;
 }

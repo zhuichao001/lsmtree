@@ -119,8 +119,8 @@ public:
             Node<KT,VT> *node = it->second;
             node->val = val;
             list.update(node);
-        } else { //add
-            if(size==capacity){
+        }else{ //add
+            if(size == capacity){
                 Node<KT,VT> *node = list.pop();
                 cache.erase(node->key);
             }
