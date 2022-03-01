@@ -173,11 +173,10 @@ void versionset::apply(versionedit *edit){
     for(auto it=edit->delfiles.begin(); it!=edit->delfiles.end(); ++it){
         basetable *t = *it;
         cache_.evict(std::string(t->path));
-        //t->unref();
     }
 
-    this->appoint(neo);
     this->persist(neo->ssts);
+    this->appoint(neo);
 }
 
 int versionset::persist(const std::vector<basetable*> ssts[MAX_LEVELS]){ 
@@ -195,7 +194,7 @@ int versionset::persist(const std::vector<basetable*> ssts[MAX_LEVELS]){
         for(int j=0; j<ssts[level].size(); ++j){
             basetable *t = ssts[level][j];
             char line[256];
-            sprintf(line, "%d %d <%s,%s>\0", t->file_number, t->smallest, t->largest);
+            sprintf(line, "%d %d %s %s\n", level, t->file_number, t->smallest.c_str(), t->largest.c_str());
             write_file(fd, line, strlen(line));
         }
     }
@@ -230,17 +229,18 @@ int versionset::recover(){
         return -1;
     }
 
-    char *token = strtok(const_cast<char*>(data.c_str()), ";;;;;;\n");
+    const char *SEPRATOR = "\n";
+    char *token = strtok(const_cast<char*>(data.c_str()), SEPRATOR);
     while(token!=nullptr){
         int level, fnumber;
         char limit[2][64];
-        sscanf(token, "%d %d <%s,%s>", &level, &fnumber, limit[0], limit[1]);
+        sscanf(token, "%d %d %s %s", &level, &fnumber, limit[0], limit[1]);
         sstable *sst = new sstable(level, fnumber, limit[0], limit[1]);
         sst->open();
         edit.add(level, sst);
         std::string sstline = token;
 
-        token = strtok(nullptr, ";;;;;;\n");
+        token = strtok(nullptr, SEPRATOR);
     }
     apply(&edit);
     //TODO: remove other ssts not in edit

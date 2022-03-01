@@ -87,5 +87,11 @@ cache:
 		../src/fio.cpp \
 		../src/sstable.cpp \
 		-I../src
+manifest:
+	 g++ -g -o run_test_manifest \
+		 test_manifest.cpp \
+		 ../src/fio.cpp \
+		 -I../src
 clean:
 	rm -rf run* data/
+
