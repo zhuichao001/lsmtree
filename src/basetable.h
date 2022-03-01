@@ -8,7 +8,7 @@
 #include "types.h"
 
 const int MAX_LEVELS = 9;
-const int SST_LIMIT = 2<<10; //default sst size:2MB
+const int SST_LIMIT = 2<<18; //default sst size:2MB
 const int MAX_ALLOWED_SEEKS = 50; //SST_LIMIT / 20480;  //max seeks before compaction
 
 //used for sst formation

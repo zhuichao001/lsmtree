@@ -5,7 +5,7 @@
 #include <string.h>
 #include "skiplist.h"
 
-const int MAX_MEMTAB_SIZE = 4<<10; //4MB
+const int MAX_MEMTAB_SIZE = 4<<20; //4MB
 const int SKIPLIST_MAX_HEIGHT = 10;
 const int BRANCH_SIZE = 16;
 
