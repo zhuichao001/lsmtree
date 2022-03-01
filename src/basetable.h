@@ -140,8 +140,6 @@ public:
         }
     }
 public:
-    //virtual int create(const char *path) = 0;
-    //virtual int load(const char *path) = 0;
     virtual int open() = 0;
     virtual int close() = 0;
 
