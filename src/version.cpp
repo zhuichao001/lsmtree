@@ -2,11 +2,11 @@
 #include "clock.h"
 
 
-int max_level_size(int ln){
+uint64_t max_level_size(int ln){
     if(ln==0){
         return 8 * SST_LIMIT;
     }
-    return int(pow(10,ln)) * 8 * SST_LIMIT;
+    return uint64_t(pow(10,ln)) * SST_LIMIT;
 }
 
 int version::get(const uint64_t seqno, const std::string &key, std::string &val){
@@ -18,16 +18,18 @@ int version::get(const uint64_t seqno, const std::string &key, std::string &val)
             continue;
         }
 
-        kvtuple tmp;
         primarysst *t = dynamic_cast<primarysst*>(ssts[0][j]);
         t->ref();
 
-        fprintf(stderr, "try find in level-0 sst-%d, %s\n", t->file_number, tmp.ckey);
+        fprintf(stderr, "try find key:%s in level-0 sst-%d, <%s, %s>\n", key.c_str(), t->file_number, t->smallest.c_str(), t->largest.c_str());
+
+        kvtuple tmp;
         int err = t->get(seqno, key, tmp);
         t->unref();
         if(err<0){
             continue;
         }
+
         fprintf(stderr, "found in level-0 sst-%d, %s:%s\n", t->file_number, tmp.ckey, tmp.cval);
         if(tmp.seqno>res.seqno){
             res = tmp;
@@ -51,12 +53,12 @@ int version::get(const uint64_t seqno, const std::string &key, std::string &val)
         //}
         for(int j=0; j<ssts[i].size(); ++j){
             sstable *t = dynamic_cast<sstable *>(ssts[i][j]);
-            vset->cache_.insert(std::string(t->path), t);
             if(key<t->smallest || key>t->largest){ //TODO: smallest/largest saved in manifest
                 continue;
             }
+            vset->cache_.insert(std::string(t->path), t);
             t->ref();
-            fprintf(stderr, "try find in level-%d sst-%d, %s\n", i, t->file_number, key.c_str());
+            fprintf(stderr, "try find key:%s in level-%d sst-%d, <%s,%s> \n", key.c_str(), i, t->file_number, t->smallest.c_str(), t->largest.c_str());
             int err = t->get(seqno, key, val);
             t->unref();
             if(err==0 || err==ERROR_KEY_DELETED){
@@ -80,11 +82,12 @@ void version::calculate(){
         for(int j=0; j<ssts[i].size(); ++j){
             total += ssts[i][j]->filesize();
         }
-        const int quota_size = max_level_size(i);
+        const uint64_t quota_size = max_level_size(i);
         if(total/quota_size > crownd_score){
             crownd_score = total/quota_size;
             crownd_level = i;
         }
+        fprintf(stderr, "  level-%d score:%f total=%f, quota_size=%ld\n", i, total/quota_size, total, quota_size);
     }
     fprintf(stderr, "after calculate crownd score:%f, level:%d\n", crownd_score, crownd_level);
 }
@@ -103,11 +106,10 @@ compaction *versionset::plan_compact(){
 
     const bool size_too_big = current_->crownd_score >= 1.0;
     const bool seek_too_many = current_->hot_sst != nullptr;
-
-    if (size_too_big) {
+    if(size_too_big){
         int level = current_->crownd_level;
         fprintf(stderr, "plan to compact because size too big, level:%d\n", level);
-        c = new compaction(level);
+        c = new compaction(level+1); //compact into next level
         for(int i=0; i < current_->ssts[level].size(); ++i){
             basetable *t = current_->ssts[level][i];
             if(campact_poles_[i].empty() || t->smallest >= campact_poles_[i]){ //TODO
@@ -120,11 +122,11 @@ compaction *versionset::plan_compact(){
             basetable *t = current_->ssts[level][0];
             c->inputs_[0].push_back(t);
         }
-    } else if(seek_too_many) {
-        fprintf(stderr, "plan to compact because seek too many, level:%d\n", current_->hot_sst->getlevel());
-        c = new compaction(current_->hot_sst->getlevel());
+    }else if(seek_too_many){
+        fprintf(stderr, "plan to compact because seek too many, level:%d\n", current_->hot_sst->level);
+        c = new compaction(current_->hot_sst->level);
         c->inputs_[0].push_back(current_->hot_sst);
-    } else {
+    }else{
         return nullptr;
     }
 
@@ -170,12 +172,13 @@ void versionset::apply(versionedit *edit){
         }
     }
 
-    for(auto it=edit->delfiles.begin(); it!=edit->delfiles.end(); ++it){
-        basetable *t = *it;
+    this->persist(neo->ssts);
+
+    for(basetable *t : edit->delfiles){
         cache_.evict(std::string(t->path));
+        t->remove();
     }
 
-    this->persist(neo->ssts);
     this->appoint(neo);
 }
 
@@ -189,6 +192,8 @@ int versionset::persist(const std::vector<basetable*> ssts[MAX_LEVELS]){
     char manifest_path[64];
     sprintf(manifest_path, "%s/meta/MANIFEST-%ld\0", basedir.c_str(), get_time_usec());
     int fd = open_create(manifest_path);
+
+    fprintf(stderr, "persist MANIFEST: %s\n", manifest_path);
 
     for(int level=0; level<MAX_LEVELS; ++level) {
         for(int j=0; j<ssts[level].size(); ++j){
@@ -243,6 +248,5 @@ int versionset::recover(){
         token = strtok(nullptr, SEPRATOR);
     }
     apply(&edit);
-    //TODO: remove other ssts not in edit
     return 0;
 }

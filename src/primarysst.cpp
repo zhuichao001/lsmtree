@@ -98,7 +98,7 @@ int primarysst::put(const uint64_t seqno, const std::string &key, const std::str
     const int keylen = key.size()+1;
     const int vallen = val.size()+1;
     const int datlen = sizeof(int) + keylen + sizeof(int) + vallen;
-    if(datoffset - idxoffset <= datlen+sizeof(rowmeta)){
+    if(datoffset - idxoffset <= datlen+sizeof(rowmeta)*2){
         return ERROR_SPACE_NOT_ENOUGH;
     }
 

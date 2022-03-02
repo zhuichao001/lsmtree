@@ -12,7 +12,6 @@
 #include "tablecache.h"
 
 extern std::string basedir;
-int max_level_size(int ln);
 
 class versionset;
 class version {
@@ -61,8 +60,10 @@ public:
     }
 
     void sort_sst(int level_idx){
-        std::sort(ssts[level_idx].begin(), ssts[level_idx].end(), [] (const basetable *a, const basetable *b) { 
-                return a->smallest < b->smallest; });
+        std::sort(ssts[level_idx].begin(), ssts[level_idx].end(), 
+                [] (const basetable *a, const basetable *b) { 
+                    return a->smallest < b->smallest; 
+                });
     }
 
     int get(const uint64_t seqno, const std::string &key, std::string &val);
@@ -72,8 +73,6 @@ public:
 
 
 class versionedit{
-//private:
-public:
     friend  class versionset;
     std::set<basetable*> delfiles;
     std::vector<basetable*> addfiles[MAX_LEVELS];

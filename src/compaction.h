@@ -28,7 +28,6 @@ public:
         return inputs_[w][idx];
     }
 
-    //TODO: optimize
     void settle_inputs(version *ver);
 
     int level(){

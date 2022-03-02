@@ -8,8 +8,8 @@
 #include "types.h"
 
 const int MAX_LEVELS = 9;
-const int SST_LIMIT = 2<<18; //default sst size:2MB
-const int MAX_ALLOWED_SEEKS = 50; //SST_LIMIT / 20480;  //max seeks before compaction
+const int SST_LIMIT = 1<<17; //default sst size:128KB
+const int MAX_ALLOWED_SEEKS = SST_LIMIT / 256;  //max seeks before compaction
 
 //used for sst formation
 typedef struct{
@@ -92,17 +92,8 @@ public:
         largest(""){
     }
 
-    void setlevel(int d){
-        level = d;
-    }
-
-    int getlevel(){
-        return level;
-    }
-
     int remove(){
-        ::remove(path);
-        return 0;
+        return ::remove(path);
     }
 
     bool overlap(basetable *other){
@@ -208,7 +199,7 @@ public:
         assert(kvb.ckey!=nullptr);
         int delta = strcmp(kva.ckey, kvb.ckey);
         if(delta!=0){
-            return delta;
+            return delta > 0;
         }
         return kva.seqno < kvb.seqno;
     }

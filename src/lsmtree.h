@@ -34,10 +34,6 @@ class lsmtree{
     versionset versions_;
     snapshotlist snapshots_;
 
-    const int sstlimit(const int li){ 
-        return 16 * (li<<4); 
-    }//leve 1+'s max size
-
     int minor_compact();
     int major_compact();
 
