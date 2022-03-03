@@ -1,4 +1,5 @@
 #include <time.h>
+#include <string>
 
 
 inline long get_time_sec(){
@@ -25,4 +26,9 @@ inline long get_time_nsec(){
 
 inline long get_time_usec(){
     return get_time_sec()*1000+get_time_nsec()/1000;
+}
+
+inline std::string timestamp(){
+    std::time_t t = std::time(NULL);
+    return std::asctime(std::localtime(&t));
 }

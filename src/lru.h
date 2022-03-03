@@ -90,16 +90,20 @@ public:
 
 template<typename KT, typename VT>
 class LRUCache{
+    NodeList<KT,VT> list;
     std::map<KT, Node<KT,VT>*> cache;
     int size;
     const int capacity;
-    NodeList<KT,VT> list;
 
 public:
     LRUCache(int cap):
         size(0),
         capacity(cap),
         list(){
+    }
+
+    bool exist(const KT &key){
+        return cache.find(key) != cache.end();
     }
 
     int get(const KT &key, VT &val){
@@ -123,6 +127,9 @@ public:
             if(size == capacity){
                 Node<KT,VT> *node = list.pop();
                 cache.erase(node->key);
+                VT v = node->val;
+                v->uncache();
+                delete node;
             }
 
             Node<KT,VT> *node = new Node<KT,VT>(key, val);
@@ -130,6 +137,18 @@ public:
             cache[key] = node;
             ++size;
         }
+    }
+
+    int del(const std::string &key, VT &val){
+        auto it = cache.find(key);
+        if(it == cache.end()){
+            return -1;
+        }
+        Node<KT,VT> *node = it->second;
+        val = node->val;
+        cache.erase(key);
+        list.remove(node);
+        return 0;
     }
 
     void display(){

@@ -3,7 +3,9 @@
 extern std::string basedir;
 
 sstable::sstable(const int lev, const int fileno, const char*leftkey, const char *rightkey):
-    basetable(){
+    basetable(),
+    fd(-1),
+    incache(false){
     level = lev;
     file_number = fileno;
     sprintf(path, "%s/sst/%d/%09d.sst\0", basedir.c_str(), lev, fileno);
@@ -75,6 +77,7 @@ void sstable::uncache(){
     if(!incache){
         return;
     }
+    fprintf(stderr, "uncache %s\n", path);
     idxoffset = 0;
     datoffset = SST_LIMIT;
     std::multimap<int, rowmeta> _;
@@ -84,6 +87,8 @@ void sstable::uncache(){
 }
 
 int sstable::get(const uint64_t seqno, const std::string &key, std::string &val){
+    assert(codemap.size()>0);
+    assert(incache);
     const int hashcode = hash(key.c_str(), key.size());
     auto res = codemap.equal_range(hashcode);
     for(auto iter = res.first; iter!=res.second; ++iter){
@@ -95,14 +100,16 @@ int sstable::get(const uint64_t seqno, const std::string &key, std::string &val)
         pread(fd, data, meta.datlen, meta.datoffset);
         char *ckey, *cval;
         loadkv(data, &ckey, &cval);
-        if(strcmp(ckey, key.c_str())==0){
-            if(meta.flag==FLAG_DEL){
-                val.assign("");
-                return ERROR_KEY_DELETED;
-            }else{
-                val.assign(cval);
-                return 0;
-            }
+        if(strcmp(ckey, key.c_str())!=0){
+            continue;
+        }
+
+        if(meta.flag==FLAG_DEL){
+            val.assign("");
+            return ERROR_KEY_DELETED;
+        }else{
+            val.assign(cval);
+            return 0;
         }
     }
     return ERROR_KEY_NOTEXIST;

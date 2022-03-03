@@ -32,19 +32,9 @@ class version {
     double crownd_score;
     int crownd_level;
 public:
-    version(versionset *vs):
-        vset(vs),
-        refnum(0),
-        hot_sst(nullptr){
-    }
+    version(versionset *vs);
 
-    ~version(){
-        for(int i=0; i<MAX_LEVELS; ++i){
-            for(int j=0; j<ssts[i].size(); ++j){
-                ssts[i][j]->unref();
-            }
-        }
-    }
+    ~version();
 
     void ref(){
         ++refnum;

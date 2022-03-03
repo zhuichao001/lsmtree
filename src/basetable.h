@@ -71,7 +71,7 @@ public:
     enum{NORMAL, COMPACTING};
     int state;
 
-    int refnum;
+    int ref_num;
     int allowed_seeks;
     int file_number;
     int file_size;
@@ -84,7 +84,7 @@ public:
         idxoffset(0),
         datoffset(SST_LIMIT),
         state(NORMAL),
-        refnum(0),
+        ref_num(0),
         file_number(0),
         file_size(0),
         allowed_seeks(MAX_ALLOWED_SEEKS),
@@ -107,15 +107,19 @@ public:
     }
 
     int ref(){
-        return ++refnum;
+        return ++ref_num;
     }
 
     int unref(){
-        assert(refnum>=1);
-        if(--refnum==0){
+        assert(ref_num>=1);
+        if(--ref_num==0){
             delete this;
         }
-        return refnum;
+        return ref_num;
+    }
+
+    int refnum(){
+        return ref_num;
     }
 
     int filesize(){

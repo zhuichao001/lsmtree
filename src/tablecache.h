@@ -16,10 +16,16 @@ public:
         lru(512){ //default:512 sstables will be cached at most
     }
 
-    void insert(const std::string &k, cached* v){
+    int insert(const std::string &k, cached* v){
+        if(lru.exist(k)){
+            fprintf(stderr, "warning, ignore cache %s exist\n", k.c_str());
+            return -1;
+        }
+        fprintf(stderr, "tablecache::insert, start cache %s\n", k.c_str());
         lru.put(k, v);
-        v->uncache();
+        fprintf(stderr, "tablecache::insert, ok, cacheing %s\n", k.c_str());
         v->cache();
+        return 0;
     }
 
     int lookup(const std::string &k, cached* &v){
@@ -28,7 +34,7 @@ public:
 
     int evict(const std::string &k){
         cached *v;
-        if(lru.get(k, v)==0){
+        if(lru.del(k, v)==0){
             v->uncache();
             return 0;
         }

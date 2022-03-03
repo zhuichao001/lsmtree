@@ -2,11 +2,25 @@
 #include "clock.h"
 
 
-uint64_t max_level_size(int ln){
-    if(ln==0){
-        return 8 * SST_LIMIT;
+inline uint64_t max_level_size(int ln){
+    return (ln==0)? 8*SST_LIMIT : uint64_t(pow(10,ln))*SST_LIMIT;
+}
+
+version::version(versionset *vs):
+    vset(vs),
+    refnum(0),
+    hot_sst(nullptr){
+}
+
+version::~version(){
+    for(int i=0; i<MAX_LEVELS; ++i){
+        for(int j=0; j<ssts[i].size(); ++j){
+            if(i>0 && ssts[i][j]->refnum()==1){
+                vset->cache_.evict(std::string(ssts[i][j]->path));
+            }
+            ssts[i][j]->unref();
+        }
     }
-    return uint64_t(pow(10,ln)) * SST_LIMIT;
 }
 
 int version::get(const uint64_t seqno, const std::string &key, std::string &val){
@@ -56,8 +70,10 @@ int version::get(const uint64_t seqno, const std::string &key, std::string &val)
             if(key<t->smallest || key>t->largest){ //TODO: smallest/largest saved in manifest
                 continue;
             }
-            vset->cache_.insert(std::string(t->path), t);
             t->ref();
+            if(!t->iscached()){
+                vset->cache_.insert(std::string(t->path), t);
+            }
             fprintf(stderr, "try find key:%s in level-%d sst-%d, <%s,%s> \n", key.c_str(), i, t->file_number, t->smallest.c_str(), t->largest.c_str());
             int err = t->get(seqno, key, val);
             t->unref();
@@ -87,7 +103,6 @@ void version::calculate(){
             crownd_score = total/quota_size;
             crownd_level = i;
         }
-        fprintf(stderr, "  level-%d score:%f total=%f, quota_size=%ld\n", i, total/quota_size, total, quota_size);
     }
     fprintf(stderr, "after calculate crownd score:%f, level:%d\n", crownd_score, crownd_level);
 }
@@ -155,36 +170,22 @@ void versionset::apply(versionedit *edit){
                 if(added[k]->smallest < t->smallest){
                     neo->ssts[i].push_back(added[k]);
                     added[k]->ref();
-                    if(i>0){
-                        cache_.insert(std::string(added[k]->path), dynamic_cast<sstable*>(added[k]));
-                    }
                     fprintf(stderr, "apply: add added sst-%d to level:%d [%s, %s]\n", added[k]->file_number, i, added[k]->smallest.c_str(), added[k]->largest.c_str());
                 } else {
                     break;
                 }
             }
             neo->ssts[i].push_back(t);
-            if(i>0){
-                cache_.insert(std::string(t->path), dynamic_cast<sstable*>(t));
-            }
             t->ref();
         }
         for(; k<added.size(); ++k){
             neo->ssts[i].push_back(added[k]);
             added[k]->ref();
-            if(i>0){
-                cache_.insert(std::string(added[k]->path), dynamic_cast<sstable*>(added[k]));
-            }
             fprintf(stderr, "apply: add added sst-%d to level:%d [%s, %s]\n", added[k]->file_number, i, added[k]->smallest.c_str(), added[k]->largest.c_str());
         }
     }
 
     this->persist(neo->ssts);
-
-    for(basetable *t : edit->delfiles){
-        cache_.evict(std::string(t->path));
-        t->remove();
-    }
 
     this->appoint(neo);
 }

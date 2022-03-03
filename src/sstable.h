@@ -28,10 +28,15 @@ class sstable: public basetable, public cached {
     int endindex();
 public:
     sstable(const int lev, const int fileno, const char*leftkey=nullptr, const char *rightkey=nullptr);
+    ~sstable(){
+        uncache();
+        remove();
+    }
     int open();
     int close();
     int reset(const std::vector<kvtuple > &tuples);
 public: //implement as cached
+    bool iscached(){return incache;}
     void cache();
     void uncache();
 public: //implement as basetable
