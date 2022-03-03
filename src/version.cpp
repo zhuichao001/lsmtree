@@ -134,7 +134,7 @@ compaction *versionset::plan_compact(){
 
     for(int i=0; i<2; ++i){ //roll compact_key ahead
         if(c->inputs_[i].size()>0){
-            basetable *t = *(c->inputs_[i].end()-1);
+            basetable *t = c->inputs_[i].back();
             roller_key_[t->level] = t->largest;
         }
     }
