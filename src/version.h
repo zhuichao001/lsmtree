@@ -98,7 +98,7 @@ class versionset {
     version verhead_;
     version *current_;
 
-    std::string campact_poles_[MAX_LEVELS]; //next campact start-key for every level
+    std::string roller_key_[MAX_LEVELS]; //next campact start-key for every level
 public:
     tablecache cache_;
 

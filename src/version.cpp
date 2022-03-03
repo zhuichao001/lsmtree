@@ -112,7 +112,7 @@ compaction *versionset::plan_compact(){
         c = new compaction(level+1); //compact into next level
         for(int i=0; i < current_->ssts[level].size(); ++i){
             basetable *t = current_->ssts[level][i];
-            if(campact_poles_[i].empty() || t->smallest >= campact_poles_[i]){ //TODO
+            if(roller_key_[i].empty() || t->smallest > roller_key_[i]){
                 c->inputs_[0].push_back(t);
                 break;
             }
@@ -131,6 +131,13 @@ compaction *versionset::plan_compact(){
     }
 
     c->settle_inputs(current_);
+
+    for(int i=0; i<2; ++i){ //roll compact_key ahead
+        if(c->inputs_[i].size()>0){
+            basetable *t = *(c->inputs_[i].end()-1);
+            roller_key_[t->level] = t->largest;
+        }
+    }
     return c;
 }
 

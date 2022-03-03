@@ -48,7 +48,6 @@ int lsmtree::get(const roptions &opt, const std::string &key, std::string &val){
     }
 
     {
-        val = "";
         int err = mutab_->get(seqno, key, val);
         mutab_->unref();
         if(err==0){

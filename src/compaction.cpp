@@ -22,7 +22,9 @@ void compaction::settle_inputs(version *ver){
             }
         }
     } else {
-        fprintf(stderr, " settle begin level:%d sst-%d <%s, %s>\n", inputs_[0][0]->file_number, inputs_[0][0]->level, start.c_str(), end.c_str());
+        fprintf(stderr, " settle begin level:%d sst-%d <%s, %s>\n", 
+                inputs_[0][0]->file_number, inputs_[0][0]->level, start.c_str(), end.c_str());
+
         for (int delta=1; ; delta=1-delta) {
             int level = level_-delta;
             int affected = 0;
@@ -45,7 +47,8 @@ void compaction::settle_inputs(version *ver){
                     end = t->largest;
                 }
 
-                fprintf(stderr, "   settle add level:%d <%s, %s> => <%s, %s>\n", level, t->smallest.c_str(), t->largest.c_str(), start.c_str(), end.c_str());
+                fprintf(stderr, "   settle add level:%d <%s, %s> => <%s, %s>\n", 
+                        level, t->smallest.c_str(), t->largest.c_str(), start.c_str(), end.c_str());
             }
             if (affected==0) {
                 break;
