@@ -23,7 +23,7 @@
 class sstable: public basetable, public cached {
     int fd;
     bool incache;
-    std::multimap<int, int> codemap; //hashcode => datoffset
+    std::multimap<int, rowmeta> codemap; //hashcode => datoffset
     int peek(int idxoffset, kvtuple &record) ;
     int endindex();
 public:

@@ -65,7 +65,7 @@ void sstable::cache(){
             break;
         }
         idxoffset = pos;
-        codemap.insert(std::make_pair(meta.hashcode, meta.datoffset));
+        codemap.insert(std::make_pair(meta.hashcode, meta));
         datoffset = meta.datoffset;
     }
     incache = true; 
@@ -77,7 +77,7 @@ void sstable::uncache(){
     }
     idxoffset = 0;
     datoffset = SST_LIMIT;
-    std::multimap<int, int> _;
+    std::multimap<int, rowmeta> _;
     _.swap(codemap);
     incache = false;
     this->close();
@@ -85,23 +85,21 @@ void sstable::uncache(){
 
 int sstable::get(const uint64_t seqno, const std::string &key, std::string &val){
     const int hashcode = hash(key.c_str(), key.size());
-    rowmeta meta;
-    //TODO optimize 
-    for(int pos=0; pos<idxoffset; pos+=sizeof(meta)){
-        pread(fd, &meta, sizeof(meta), pos);
-        if(hashcode==meta.hashcode){
-            if(meta.seqno>seqno){
-                continue;
-            }
+    auto res = codemap.equal_range(hashcode);
+    for(auto iter = res.first; iter!=res.second; ++iter){
+        const rowmeta &meta = iter->second;
+        if(meta.seqno>seqno){
+            continue;
+        }
+        char data[meta.datlen];
+        pread(fd, data, meta.datlen, meta.datoffset);
+        char *ckey, *cval;
+        loadkv(data, &ckey, &cval);
+        if(strcmp(ckey, key.c_str())==0){
             if(meta.flag==FLAG_DEL){
+                val.assign("");
                 return ERROR_KEY_DELETED;
-            }
-
-            char data[meta.datlen];
-            pread(fd, data, meta.datlen, meta.datoffset);
-            char *ckey, *cval;
-            loadkv(data, &ckey, &cval);
-            if(strcmp(ckey, key.c_str())==0){
+            }else{
                 val.assign(cval);
                 return 0;
             }

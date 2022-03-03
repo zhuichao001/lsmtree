@@ -17,7 +17,6 @@ public:
     }
 
     void insert(const std::string &k, cached* v){
-        return;
         lru.put(k, v);
         v->uncache();
         v->cache();
@@ -28,7 +27,6 @@ public:
     }
 
     int evict(const std::string &k){
-        return 0;
         cached *v;
         if(lru.get(k, v)==0){
             v->uncache();
