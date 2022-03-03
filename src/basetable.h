@@ -113,6 +113,7 @@ public:
     int unref(){
         assert(ref_num>=1);
         if(--ref_num==0){
+            fprintf(stderr, "unref destroy level-%d sst-%d <%s,%s>\n", level, file_number, smallest.c_str(), largest.c_str());
             delete this;
         }
         return ref_num;

@@ -34,8 +34,7 @@ int lsmtree::open(const options *opt, const char *dirpath){
 }
 
 int lsmtree::get(const roptions &opt, const std::string &key, std::string &val){
-    int seqno = (opt.snap==nullptr)? versions_.last_sequence():opt.snap->sequence();
-    fprintf(stderr, "lsmtree::get seqno:%d\n", seqno);
+    int seqno = (opt.snap==nullptr)? versions_.last_sequence() : opt.snap->sequence();
     version *cur = nullptr; 
     {
         std::unique_lock<std::mutex> lock{mutex_};
@@ -173,14 +172,17 @@ int lsmtree::major_compact(){
     }
 
     versionedit edit;
-    {
-        std::vector<basetable::iterator> vec; //collect all iterators
+    if(c->inputs_[0].size()==1 && c->inputs_[1].size()==0 && c->inputs_[0][0]->level>=1){ 
+        //directly move to next level
+        edit.remove(c->inputs_[0][0]);
+        edit.add(c->level(), c->inputs_[0][0]);
+    } else {
+        std::vector<basetable::iterator> vec;
         for(int i=0; i<2; ++i){
-            for(int j=0; j<c->inputs_[i].size(); ++j){
-                edit.remove(c->inputs_[i][j]);
-                basetable::iterator it = c->inputs_[i][j]->begin();
-                vec.push_back(it);
-                fprintf(stderr, "   ...major compact from %d %d  sst-%d <%s, %s>\n", i, j, c->inputs_[i][j]->file_number, c->inputs_[i][j]->smallest.c_str(), c->inputs_[i][j]->largest.c_str());
+            for(basetable *t : c->inputs_[i]){
+                edit.remove(t);
+                vec.push_back(t->begin());
+                fprintf(stderr, "   ...major compact from input-%d level:%d  sst-%d <%s, %s>\n", i, t->level, t->file_number, t->smallest.c_str(), t->largest.c_str());
             }
         }
         if(vec.empty()){
@@ -210,24 +212,23 @@ int lsmtree::major_compact(){
             }
 
             if(produced>0 && lastkey==t.ckey && t.seqno<snapshots_.smallest_sn()){
-                fprintf(stderr, "major compact drop kvtuple %s:%s %d\n", t.ckey, t.cval, t.flag);
                 continue;
             }
 
             lastkey = t.ckey;
 
             if(sst->put(t.seqno, std::string(t.ckey), std::string(t.cval), t.flag)==ERROR_SPACE_NOT_ENOUGH){
-                fprintf(stderr, "    !!!major compact into sst-%d range:[%s, %s]\n", sst->file_number, sst->smallest.c_str(), sst->largest.c_str());
+                fprintf(stderr, "    >>>major compact into level:%d sst-%d range:[%s, %s]\n", destlevel, sst->file_number, sst->smallest.c_str(), sst->largest.c_str());
 
                 ++produced;
                 sst = new sstable(destlevel, versions_.next_fnumber());
                 sst->open();
-
                 edit.add(destlevel, sst);
+
                 sst->put(t.seqno, std::string(t.ckey), std::string(t.cval), t.flag);
             }
         }
-        fprintf(stderr, "    !!!major compact into sst-%d range:[%s, %s], produced:%d->%d\n", sst->file_number, sst->smallest.c_str(), sst->largest.c_str(), total, produced);
+        fprintf(stderr, "    >>>major compact into level:%d sst-%d range:[%s, %s], produced:%d->%d\n", destlevel, sst->file_number, sst->smallest.c_str(), sst->largest.c_str(), total, produced);
     }
 
     versions_.apply(&edit);

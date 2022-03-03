@@ -13,6 +13,8 @@ struct options{
 struct roptions{
     bool fill_cache;
     const snapshot *snap;
+    roptions(): snap(nullptr){
+    }
 };
 
 struct woptions{

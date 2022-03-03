@@ -27,6 +27,8 @@ int version::get(const uint64_t seqno, const std::string &key, std::string &val)
     kvtuple res;
     res.seqno = 0;
 
+    fprintf(stderr, "to get %s\n", key.c_str());
+
     for(int j=0; j<ssts[0].size(); ++j){
         if(key<ssts[0][j]->smallest || key>ssts[0][j]->largest){
             continue;
@@ -146,6 +148,10 @@ compaction *versionset::plan_compact(){
     }
 
     c->settle_inputs(current_);
+    if(seek_too_many && c->inputs_[1].size()==0){
+        delete c;
+        return nullptr;
+    }
 
     for(int i=0; i<2; ++i){ //roll compact_key ahead
         if(c->inputs_[i].size()>0){

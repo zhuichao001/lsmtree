@@ -59,6 +59,14 @@ public:
     int get(const uint64_t seqno, const std::string &key, std::string &val);
 
     void calculate();
+
+    void print(){
+        for(int i=0; i<MAX_LEVELS; ++i){
+            for(basetable *t : ssts[i]){
+                fprintf(stderr, "  level-%d sst-%d <%s,%s>\n", i, t->file_number, t->smallest.c_str(), t->largest.c_str());
+            }
+        }
+    }
 };
 
 
@@ -69,11 +77,23 @@ class versionedit{
 public:
     void add(int level, basetable *t){
         assert(level>=0 && level<MAX_LEVELS);
+        t->level = level;
         addfiles[level].push_back(t);
     }
 
     void remove(basetable *t){
         delfiles.insert(t);
+    }
+
+    void print(){
+        for(basetable *t : delfiles){
+            fprintf(stderr, "  ---versionedit del: %d sst-%d <%s,%s>\n", t->level, t->file_number, t->smallest.c_str(), t->largest.c_str());
+        }
+        for(int i=0; i<MAX_LEVELS; ++i){
+            for(basetable *t : addfiles[i]){
+                fprintf(stderr, "  +++versionedit add: %d sst-%d <%s,%s>\n", i, t->file_number, t->smallest.c_str(), t->largest.c_str());
+            }
+        }
     }
 };
 
