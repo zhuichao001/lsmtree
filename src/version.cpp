@@ -223,7 +223,10 @@ int versionset::persist(const std::vector<basetable*> ssts[MAX_LEVELS]){
 
     char temporary[PATH_LEN];
     sprintf(temporary, "%s/.temporary\0", basedir.c_str());
-    write_file(temporary, manifest_path, PATH_LEN); 
+
+    char data[256];
+    sprintf(data, "%d %s\0", last_sequence_, manifest_path);
+    write_file(temporary, data, strlen(data)); 
     char current[PATH_LEN];
     sprintf(current, "%s/CURRENT\0", basedir.c_str());
     fprintf(stderr, "MV MANIFEST from %s to %s\n", temporary, current);
@@ -239,24 +242,35 @@ int versionset::recover(){
     }
 
     char current[PATH_LEN];
-    sprintf(current, "%s/CURRENT\0", metapath);
-    std::string manifest_path;
-    if(read_file(current, manifest_path)<0){
+    sprintf(current, "%s/CURRENT\0", basedir.c_str());
+    std::string data;
+    if(read_file(current, data)<0){
         return -1;
     }
 
+    char manifest_path[PATH_LEN];
+    memset(manifest_path, 0, sizeof(manifest_path));
+    sscanf(data.c_str(), "%d %s\0", &last_sequence_, manifest_path);
+
+    fprintf(stderr, "last_seqno:%d, manifest_path:%s\n", last_sequence_, manifest_path);
+
     versionedit edit;
-    std::string data;
-    if(read_file(manifest_path.c_str(), data)<0){
+    data.clear();
+    if(read_file(manifest_path, data)<0){
+        fprintf(stderr, "read manifest error\n");
         return -1;
     }
 
     const char *SEPRATOR = "\n";
     char *token = strtok(const_cast<char*>(data.c_str()), SEPRATOR);
     while(token!=nullptr){
-        int level, fnumber;
+        int level=0, fnumber=0;
         char limit[2][64];
+        memset(limit, 0, sizeof(limit));
+        fprintf(stderr, "token:[%s]\n", token);
         sscanf(token, "%d %d %s %s", &level, &fnumber, limit[0], limit[1]);
+        fprintf(stderr, "RECOVER sstable level-%d sst-%d <%s,%s>\n", level, fnumber, limit[0], limit[1]);
+
         sstable *sst = new sstable(level, fnumber, limit[0], limit[1]);
         sst->open();
         edit.add(level, sst);

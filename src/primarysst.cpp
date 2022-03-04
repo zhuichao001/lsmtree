@@ -37,7 +37,7 @@ int primarysst::open(){
     if(!exist(path)){
         int fd = ::open(path, O_RDWR | O_CREAT , 0664);
         if(fd<0) {
-            fprintf(stderr, "open file error: %s\n", strerror(errno));
+            fprintf(stderr, "open file %s error: %s\n", path, strerror(errno));
             ::close(fd);
             return -1;
         }
@@ -58,7 +58,7 @@ int primarysst::open(){
 int primarysst::load(){
     int fd = ::open(path, O_RDWR, 0664);
     if(fd<0) {
-        fprintf(stderr, "open file error: %s\n", strerror(errno));
+        fprintf(stderr, "open file %s error: %s\n", path, strerror(errno));
         ::close(fd);
         return -1;
     }

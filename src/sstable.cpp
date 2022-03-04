@@ -22,7 +22,7 @@ int sstable::open(){
     if(!exist(path)){
         fd = ::open(path, O_RDWR | O_CREAT , 0664);
         if(fd<0) {
-            fprintf(stderr, "open file error: %s\n", strerror(errno));
+            fprintf(stderr, "open file %s error: %s\n", path, strerror(errno));
             return -1;
         }
         ::ftruncate(fd, SST_LIMIT);
@@ -30,7 +30,7 @@ int sstable::open(){
     } else {
         fd = ::open(path, O_RDWR, 0664);
         if(fd<0) {
-            fprintf(stderr, "open file error: %s\n", strerror(errno));
+            fprintf(stderr, "open file %s error: %s\n", path, strerror(errno));
             return -1;
         }
         return 0;
