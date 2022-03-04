@@ -1,13 +1,12 @@
 #include "sstable.h"
 
-extern std::string basedir;
 
 sstable::sstable(const int lev, const int fileno, const char*start, const char *end):
     basetable(),
     fd(-1) {
     level = lev;
     file_number = fileno;
-    sprintf(path, "%s/sst/%d/%09d.sst\0", basedir.c_str(), lev, fileno);
+    sprintf(path, "%s/sst/%09d.sst\0", basedir.c_str(), fileno);
 
     if(start!=nullptr){
         smallest = start;

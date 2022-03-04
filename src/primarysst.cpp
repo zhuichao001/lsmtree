@@ -7,7 +7,7 @@ primarysst::primarysst(const int fileno):
     mem(nullptr){
     level = 0;
     file_number = fileno;
-    sprintf(path, "data/pri/%09d.pri\0", fileno);
+    sprintf(path, "%s/sst/%09d.sst\0", basedir.c_str(), fileno);
 }
 
 primarysst::~primarysst(){

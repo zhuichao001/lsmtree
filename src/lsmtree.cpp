@@ -12,18 +12,10 @@ const int TIER_SST_COUNT(int level){
 
 int lsmtree::open(const options *opt, const char *dirpath){
     basedir = dirpath;
-    char pripath[64];
-    sprintf(pripath, "%s/pri/\0", dirpath);
-    if(!exist(pripath)){
-        mkdir(pripath);
-    }
-
-    for(int lev=1; lev<=MAX_LEVELS; ++lev){
-        char path[64];
-        sprintf(path, "data/sst/%d/\0", lev);
-        if(!exist(path)){
-            mkdir(path);
-        }
+    char path[64];
+    sprintf(path, "%s/sst/\0", dirpath);
+    if(!exist(path)){
+        mkdir(path);
     }
 
     versions_.recover();

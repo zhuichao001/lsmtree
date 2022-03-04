@@ -154,6 +154,8 @@ compaction *versionset::plan_compact(){
 
     c->settle_inputs(current_);
     if(seek_too_many && c->inputs_[1].size()==0){
+        current_->hot_sst->allowed_seeks = MAX_ALLOWED_SEEKS;
+        current_->hot_sst = nullptr;
         delete c;
         return nullptr;
     }
