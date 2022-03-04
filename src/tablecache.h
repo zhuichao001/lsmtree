@@ -5,8 +5,8 @@
 
 class cached{
 public:
-    virtual void cache()=0;
-    virtual void uncache()=0;
+    virtual void cache() = 0;
+    virtual void uncache() = 0;
 };
 
 class tablecache{

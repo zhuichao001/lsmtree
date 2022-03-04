@@ -46,9 +46,9 @@ int test(){
         return -1;
     }
 
-    //std::cout << "WRITE BEGIN " << timestamp() << std::endl;
-    //test_w(db);
-    //std::cout << "WRITE END " << timestamp() << std::endl;
+    std::cout << "WRITE BEGIN " << timestamp() << std::endl;
+    test_w(db);
+    std::cout << "WRITE END " << timestamp() << std::endl;
 
     std::cout << "READ BEGIN " << timestamp() << std::endl;
     test_r(db);

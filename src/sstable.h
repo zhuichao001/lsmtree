@@ -17,28 +17,22 @@
 #include "fio.h"
 #include "encode.h"
 #include "types.h"
-#include "tablecache.h"
 
 
-class sstable: public basetable, public cached {
+class sstable: public basetable {
     int fd;
-    bool incache;
     std::multimap<int, rowmeta> codemap; //hashcode => datoffset
     int peek(int idxoffset, kvtuple &record) ;
     int endindex();
 public:
     sstable(const int lev, const int fileno, const char*leftkey=nullptr, const char *rightkey=nullptr);
     ~sstable(){
-        uncache();
         remove();
     }
     int open();
     int close();
-    int reset(const std::vector<kvtuple > &tuples);
-public: //implement as cached
-    bool iscached(){return incache;}
-    void cache();
-    void uncache();
+    int load();
+    int release();
 public: //implement as basetable
     int get(const uint64_t seqno, const std::string &key, std::string &val);
     int put(const uint64_t seqno, const std::string &key, const std::string &val, int flag=FLAG_VAL);

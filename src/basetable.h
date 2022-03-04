@@ -6,10 +6,11 @@
 #include <functional>
 #include <string>
 #include "types.h"
+#include "tablecache.h"
 
 const int MAX_LEVELS = 9;
 const int SST_LIMIT = 1<<17; //default sst size:128KB
-const int MAX_ALLOWED_SEEKS = SST_LIMIT / 256;  //max seeks before compaction
+const int MAX_ALLOWED_SEEKS = SST_LIMIT / 64;  //max seeks before compaction
 
 //used for sst formation
 typedef struct{
@@ -60,7 +61,7 @@ public:
     }
 };
 
-class basetable{
+class basetable: public cached {
 public:
     int level;
     char path[64];
@@ -68,7 +69,7 @@ public:
     int idxoffset;
     int datoffset;
 
-    enum{NORMAL, COMPACTING};
+    enum {NORMAL, COMPACTING};
     int state;
 
     int ref_num;
@@ -78,6 +79,8 @@ public:
 
     std::string smallest;
     std::string largest;
+
+    bool incache;
 
     basetable():
         level(0),
@@ -89,7 +92,8 @@ public:
         file_size(0),
         allowed_seeks(MAX_ALLOWED_SEEKS),
         smallest(64, '\xff'),
-        largest(""){
+        largest(""),
+        incache(false){
     }
 
     int remove(){
@@ -135,9 +139,35 @@ public:
             largest = key;
         }
     }
+
+    void cache(){
+        if(incache){
+            return ;
+        }
+        fprintf(stderr, "CACHEING %s\n", path);
+        //cache: idxoffset, datoffset, codemap
+        load();
+        incache = true; 
+    }
+
+    void uncache(){
+        if(!incache){
+            return ;
+        }
+        fprintf(stderr, "UNCACHEING %s\n", path);
+        release();
+        this->close();
+        incache = false;
+    }
+
+    bool iscached(){
+        return incache;
+    }
 public:
     virtual int open() = 0;
     virtual int close() = 0;
+    virtual int load() = 0;
+    virtual int release() = 0;
 
     virtual int get(const uint64_t seqno, const std::string &key, std::string &val) = 0;
     virtual int put(const uint64_t seqno, const std::string &key, const std::string &val, int flag=0) = 0;

@@ -2,19 +2,18 @@
 
 extern std::string basedir;
 
-sstable::sstable(const int lev, const int fileno, const char*leftkey, const char *rightkey):
+sstable::sstable(const int lev, const int fileno, const char*start, const char *end):
     basetable(),
-    fd(-1),
-    incache(false){
+    fd(-1) {
     level = lev;
     file_number = fileno;
     sprintf(path, "%s/sst/%d/%09d.sst\0", basedir.c_str(), lev, fileno);
 
-    if(leftkey!=nullptr){
-        smallest = leftkey;
+    if(start!=nullptr){
+        smallest = start;
     }
-    if(rightkey!=nullptr){
-        largest = rightkey;
+    if(end!=nullptr){
+        largest = end;
     }
 }
 
@@ -45,45 +44,35 @@ int sstable::close(){
     return 0;
 }
 
-//cached in: idxoffset, datoffset, codemap
-void sstable::cache(){
-    if(incache){
-        return;
-    }
+int sstable::load(){
     if(fd<0){
         open();
     }
     idxoffset = 0;
     datoffset = SST_LIMIT;
-    rowmeta meta;
     //loop break if meta is {0,0,0,0,0}
-    for(int pos=0; meta.datoffset!=0; pos+=sizeof(meta)){
+    for(int pos=0; ; pos+=sizeof(rowmeta)){
+        rowmeta meta;
         if(pread(fd, (void*)&meta, sizeof(meta), pos) < 0){
-            fprintf(stderr, "cache::pread fd:%d pos:%d\n", fd, pos);
             perror("pread error::");
-            return;
+            return -1;
         }
-        if(meta.seqno==0 && meta.hashcode && meta.datoffset){
+        if(meta.hashcode==0 && meta.datoffset==0){
             break;
         }
         idxoffset = pos;
         codemap.insert(std::make_pair(meta.hashcode, meta));
         datoffset = meta.datoffset;
     }
-    incache = true; 
+    return 0;
 }
 
-void sstable::uncache(){
-    if(!incache){
-        return;
-    }
-    fprintf(stderr, "uncache %s\n", path);
+int sstable::release(){
     idxoffset = 0;
     datoffset = SST_LIMIT;
     std::multimap<int, rowmeta> _;
     _.swap(codemap);
-    incache = false;
-    this->close();
+    return 0;
 }
 
 int sstable::get(const uint64_t seqno, const std::string &key, std::string &val){
@@ -144,19 +133,6 @@ int sstable::put(const uint64_t seqno, const std::string &key, const std::string
     const int rowlen = sizeof(int)+keylen+sizeof(int)+vallen + sizeof(meta);
     file_size += rowlen;
     uplimit(key);
-    return 0;
-}
-
-int sstable::reset(const std::vector<kvtuple > &tuples){
-    idxoffset = 0;
-    datoffset = SST_LIMIT;
-    for(auto it = tuples.begin(); it!=tuples.end(); ++it){
-        const kvtuple &t = *it;
-        put(t.seqno, t.ckey, t.cval, t.flag);
-    }
-
-    rowmeta meta = {0, 0, 0, 0, 0}; // indicate ENDING
-    pwrite(fd, &meta, sizeof(meta), idxoffset);
     return 0;
 }
 

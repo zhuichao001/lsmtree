@@ -25,10 +25,10 @@ class primarysst: public basetable{
 public:
     primarysst(const int fileno);
     ~primarysst();
-
     int open();
-    int load();
     int close();
+    int load();
+    int release();
 public:
     int get(const uint64_t seqno, const std::string &key, kvtuple &res);
     int get(const uint64_t seqno, const std::string &key, std::string &val);

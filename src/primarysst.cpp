@@ -2,7 +2,51 @@
 #include "primarysst.h"
 
 
-int primarysst::restoremeta(){
+primarysst::primarysst(const int fileno):
+    basetable(),
+    mem(nullptr){
+    level = 0;
+    file_number = fileno;
+    sprintf(path, "data/pri/%09d.pri\0", fileno);
+}
+
+primarysst::~primarysst(){
+    ::munmap(mem, SST_LIMIT);
+}
+
+int primarysst::open(){
+    int fd= -1;
+    if(!exist(path)){
+        fd = ::open(path, O_RDWR | O_CREAT , 0664);
+        if(fd<0) {
+            fprintf(stderr, "open file %s error: %s\n", path, strerror(errno));
+            ::close(fd);
+            return -1;
+        }
+        ::ftruncate(fd, SST_LIMIT);
+    } else {
+        fd = ::open(path, O_RDWR, 0664);
+        if(fd<0) {
+            fprintf(stderr, "open file %s error: %s\n", path, strerror(errno));
+            ::close(fd);
+            return -1;
+        }
+        struct stat sb;
+        stat(path, &sb);
+        assert(sb.st_size <= SST_LIMIT); 
+    }
+    mem = (char*)::mmap(nullptr, SST_LIMIT, PROT_READ|PROT_WRITE, MAP_SHARED, fd, 0);
+    if(mem == MAP_FAILED) {
+       fprintf(stderr, "mmap error: %s\n", strerror(errno));
+       ::close(fd);
+       return -1;
+   }
+
+   ::close(fd);
+   return 0;
+}
+
+int primarysst::load(){
     idxoffset = 0;
     datoffset = SST_LIMIT;
     for(int pos=0; pos<SST_LIMIT; pos+=sizeof(rowmeta)){
@@ -21,70 +65,11 @@ int primarysst::restoremeta(){
     return 0;
 }
 
-primarysst::primarysst(const int fileno):
-    basetable(),
-    mem(nullptr){
-    level = 0;
-    file_number = fileno;
-    sprintf(path, "data/pri/%09d.pri\0", fileno);
-}
-
-primarysst::~primarysst(){
-    ::munmap(mem, SST_LIMIT);
-}
-
-int primarysst::open(){
-    if(!exist(path)){
-        int fd = ::open(path, O_RDWR | O_CREAT , 0664);
-        if(fd<0) {
-            fprintf(stderr, "open file %s error: %s\n", path, strerror(errno));
-            ::close(fd);
-            return -1;
-        }
-        ::ftruncate(fd, SST_LIMIT);
-        mem = (char*)::mmap(nullptr, SST_LIMIT, PROT_READ|PROT_WRITE, MAP_SHARED, fd, 0);
-        if(mem == MAP_FAILED) {
-            fprintf(stderr, "mmap error: %s\n", strerror(errno));
-            ::close(fd);
-            return -1;
-        }
-
-        ::close(fd);
-        return 0;
-    }
-    return load();
-}
-
-int primarysst::load(){
-    int fd = ::open(path, O_RDWR, 0664);
-    if(fd<0) {
-        fprintf(stderr, "open file %s error: %s\n", path, strerror(errno));
-        ::close(fd);
-        return -1;
-    }
-
-    struct stat sb;
-    if (stat(path, &sb) < 0) {
-        fprintf(stderr, "stat %s fail\n", path);
-        ::close(fd);
-        return -1;
-    }
-
-    if(sb.st_size > SST_LIMIT) {
-        fprintf(stderr, "length:%d is too large\n", sb.st_size);
-        ::close(fd);
-        return -1;
-    }
-
-    mem = (char *)mmap(NULL, SST_LIMIT, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
-    if (mem == (char *)-1) {
-        fprintf(stderr, "mmap fail\n");
-        ::close(fd);
-        return -1;
-    }
-    ::close(fd);
-
-    restoremeta();
+int primarysst::release(){
+    idxoffset = 0;
+    datoffset = SST_LIMIT;
+    std::multimap<int, kvtuple> _;
+    _.swap(codemap);
     return 0;
 }
 
@@ -128,7 +113,6 @@ int primarysst::put(const uint64_t seqno, const std::string &key, const std::str
 
 int primarysst::get(const uint64_t seqno, const std::string &key, kvtuple &res){
     const int hashcode = hash(key.c_str(), key.size());
-
     auto pr = codemap.equal_range(hashcode);
     for (auto iter = pr.first ; iter != pr.second; ++iter){
         const kvtuple &t = iter->second;

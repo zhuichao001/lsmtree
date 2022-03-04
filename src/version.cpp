@@ -38,6 +38,9 @@ int version::get(const uint64_t seqno, const std::string &key, std::string &val)
 
         primarysst *t = dynamic_cast<primarysst*>(ssts[0][j]);
         t->ref();
+        if(!t->iscached()){
+            vset->cache_.insert(std::string(t->path), t);
+        }
 
         fprintf(stderr, "try find key:%s in level-0 sst-%d, <%s, %s>\n", key.c_str(), t->file_number, t->smallest.c_str(), t->largest.c_str());
 
@@ -243,15 +246,14 @@ int versionset::recover(){
 
     char current[PATH_LEN];
     sprintf(current, "%s/CURRENT\0", basedir.c_str());
+    char manifest_path[PATH_LEN];
+    memset(manifest_path, 0, sizeof(manifest_path));
+
     std::string data;
     if(read_file(current, data)<0){
         return -1;
     }
-
-    char manifest_path[PATH_LEN];
-    memset(manifest_path, 0, sizeof(manifest_path));
     sscanf(data.c_str(), "%d %s\0", &last_sequence_, manifest_path);
-
     fprintf(stderr, "last_seqno:%d, manifest_path:%s\n", last_sequence_, manifest_path);
 
     versionedit edit;
