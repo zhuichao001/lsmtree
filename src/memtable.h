@@ -3,6 +3,7 @@
 
 #include <functional>
 #include <string.h>
+#include "table.h"
 #include "skiplist.h"
 
 const int MAX_MEMTAB_SIZE = 1<<20; //1MB
@@ -51,7 +52,6 @@ public:
         size_ += key.size() + val.size() + sizeof(int)*4;
         node *neo = table_.insert(seqno, key, val, flag);
         assert(neo!=nullptr);
-        //neo->print();
         return 0;
     }
 

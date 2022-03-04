@@ -5,8 +5,8 @@
 #include <assert.h>
 #include <functional>
 #include <string>
-#include "types.h"
 #include "tablecache.h"
+#include "table.h"
 
 extern std::string basedir;
 

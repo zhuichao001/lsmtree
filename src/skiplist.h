@@ -8,7 +8,6 @@
 #include <iostream>
 #include <atomic>
 #include <string>
-#include "types.h"
 
 
 class node {
@@ -22,7 +21,7 @@ public:
     int height;
     node **forwards;  // next for i'th layer
 
-    node(const int level, const uint64_t seq, const std::string &k, const std::string &v="", const int flag=FLAG_VAL):
+    node(const int level, const uint64_t seq, const std::string &k, const std::string &v, const int flag):
         height(level),
         seqno(seq),
         key(k),
@@ -95,8 +94,8 @@ public:
         BRANCHING(branch){
         length = 0;
         height = 1;
-        head = new node(MAXHEIGHT, 0, "");
-        nil = new node(MAXHEIGHT, 0, std::string(256, '\xff')); 
+        head = new node(MAXHEIGHT, 0, "", "", -1);
+        nil = new node(MAXHEIGHT, 0, std::string(256, '\xff'), "", -1); 
         for(int i=0; i<MAXHEIGHT; ++i){
             head->forwards[i] = nil;
         }
@@ -124,7 +123,7 @@ public:
 
     node *search(const std::string &k);
 
-    node *insert(const uint64_t seqno, const std::string &k, const std::string &v, const int flag=FLAG_VAL);
+    node *insert(const uint64_t seqno, const std::string &k, const std::string &v, const int flag);
 
     void print();
 
