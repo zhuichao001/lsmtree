@@ -162,9 +162,9 @@ int lsmtree::major_compact(){
     if(c==nullptr){ //do nothing
         return 0;
     }
-
+    assert(c->inputs_[0].size()>0);
     versionedit edit;
-    if(c->inputs_[0].size()==1 && c->inputs_[1].size()==0 && c->inputs_[0][0]->level>=1){ 
+    if(c->size()==1){ 
         //directly move to next level
         edit.remove(c->inputs_[0][0]);
         edit.add(c->level(), c->inputs_[0][0]);

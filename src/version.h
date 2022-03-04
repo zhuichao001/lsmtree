@@ -26,7 +26,7 @@ class version {
     std::vector<basetable*> ssts[MAX_LEVELS];
 
     //compact caused by allowed_seeks become zero
-    sstable *hot_sst;
+    basetable *hot_sst;
 
     //max compaction score and corresponding level
     double crownd_score;

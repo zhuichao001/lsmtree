@@ -73,7 +73,7 @@ int version::get(const uint64_t seqno, const std::string &key, std::string &val)
         //    continue;
         //}
         for(int j=0; j<ssts[i].size(); ++j){
-            sstable *t = dynamic_cast<sstable *>(ssts[i][j]);
+            basetable *t = ssts[i][j];
             if(key<t->smallest || key>t->largest){ //TODO: smallest/largest saved in manifest
                 continue;
             }
@@ -125,7 +125,6 @@ versionset::versionset():
 
 compaction *versionset::plan_compact(){
     compaction *c;
-
     const bool size_too_big = current_->crownd_score >= 1.0;
     const bool seek_too_many = current_->hot_sst != nullptr;
     if(size_too_big){
@@ -140,7 +139,7 @@ compaction *versionset::plan_compact(){
             }
         }
 
-        if(c->inputs_[0].empty()){ //wrap arround to begin
+        if(c->inputs_[0].empty()){ //roll back
             basetable *t = current_->ssts[level][0];
             c->inputs_[0].push_back(t);
         }
@@ -148,22 +147,24 @@ compaction *versionset::plan_compact(){
         fprintf(stderr, "plan to compact because seek too many, level:%d\n", current_->hot_sst->level);
         c = new compaction(current_->hot_sst->level);
         c->inputs_[0].push_back(current_->hot_sst);
+        current_->hot_sst->allowed_seeks = MAX_ALLOWED_SEEKS;
+        current_->hot_sst = nullptr;
     }else{
         return nullptr;
     }
 
     c->settle_inputs(current_);
-    if(seek_too_many && c->inputs_[1].size()==0){
-        current_->hot_sst->allowed_seeks = MAX_ALLOWED_SEEKS;
-        current_->hot_sst = nullptr;
-        delete c;
-        return nullptr;
-    }
-
-    for(int i=0; i<2; ++i){ //roll compact_key ahead
-        if(c->inputs_[i].size()>0){
-            basetable *t = c->inputs_[i].back();
-            roller_key_[t->level] = t->largest;
+    if(seek_too_many ){
+        if(c->inputs_[1].size()==0){
+            delete c;
+            return nullptr;
+        }
+    }else{
+        for(int i=0; i<2; ++i){ //roll compact_key ahead
+            if(c->inputs_[i].size()>0){
+                basetable *t = c->inputs_[i].back();
+                roller_key_[t->level] = t->largest;
+            }
         }
     }
     return c;

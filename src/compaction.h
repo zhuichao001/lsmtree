@@ -34,6 +34,10 @@ public:
         return level_;
     }
 
+    int size(){
+        return inputs_[0].size()+inputs_[1].size();
+    }
+
 };
 
 #endif
