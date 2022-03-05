@@ -42,7 +42,6 @@ int lsmtree::get(const roptions &opt, const std::string &key, std::string &val){
         int err = mutab_->get(seqno, key, val);
         mutab_->unref();
         if(err==0){
-            fprintf(stderr, "ok, mutab get %s:%s\n", key.c_str(), val.c_str());
             return 0;
         }
     }
@@ -51,7 +50,6 @@ int lsmtree::get(const roptions &opt, const std::string &key, std::string &val){
         int err = immutab_->get(seqno, key, val);
         immutab_->unref();
         if(err==0){
-            fprintf(stderr, "ok, immutab get %s:%s\n", key.c_str(), val.c_str());
             return 0;
         }
     }
@@ -60,12 +58,15 @@ int lsmtree::get(const roptions &opt, const std::string &key, std::string &val){
         int err = cur->get(seqno, key, val);
         cur->unref();
         schedule_compaction();
-        fprintf(stderr, "err:%d, version get %s:%s\n", err, key.c_str(), val.c_str());
         return err;
     }
 }
 
 void lsmtree::schedule_compaction(){
+    if(compacting){
+        return;
+    }
+    compacting = true;
     backstage.post([this]{
         {
             std::unique_lock<std::mutex> lock{mutex_};
@@ -74,6 +75,7 @@ void lsmtree::schedule_compaction(){
             }else if(versions_.need_compact()){
                 this->major_compact();
             }
+            compacting = false;
         }
         schedule_compaction();
     });
@@ -86,7 +88,7 @@ int lsmtree::sweep_space(){
 
     std::unique_lock<std::mutex> lock{mutex_};
     if (immutab_!=nullptr) {
-        fprintf(stderr, "level0 wait\n");
+        fprintf(stderr, "level-0 wait\n");
         level0_cv_.wait(lock);
     } else {
         //TODO log file
@@ -100,7 +102,6 @@ int lsmtree::sweep_space(){
 
 int lsmtree::put(const woptions &opt, const std::string &key, const std::string &val){
     if(sweep_space()){
-        fprintf(stderr, "shift space error\n");
         return -1;
     }
     int seqno = versions_.add_sequence(1);
@@ -112,7 +113,6 @@ int lsmtree::put(const woptions &opt, const std::string &key, const std::string 
 
 int lsmtree::del(const woptions &opt, const std::string &key){
     if(sweep_space()){
-        fprintf(stderr, "shift space error\n");
         return -1;
     }
 
@@ -135,7 +135,6 @@ int lsmtree::minor_compact(){
     immutab_->scan(versions_.last_sequence(), [=, &edit, &sst](const uint64_t seqno, const std::string &key, const std::string &val, int flag) ->int {
         if(sst->put(seqno, key, val, flag)==ERROR_SPACE_NOT_ENOUGH){
             fprintf(stderr, "minor compact into sst-%d range:[%s, %s]\n", sst->file_number, sst->smallest.c_str(), sst->largest.c_str());
-            //sst->print(versions_.last_sequence());
             edit.add(0, sst);
             sst = new primarysst(versions_.next_fnumber());
             sst->open();
@@ -144,7 +143,6 @@ int lsmtree::minor_compact(){
         return 0;
     });
     fprintf(stderr, "minor compact into sst-%d range:[%s, %s]\n", sst->file_number, sst->smallest.c_str(), sst->largest.c_str());
-    //sst->print(versions_.last_sequence());
     edit.add(0, sst);
 
     versions_.apply(&edit);
@@ -232,7 +230,6 @@ int lsmtree::major_compact(){
 int lsmtree::write(const wbatch &bat){
     bat.scan([this](const char *key, const char *val, const int flag)->int{
         if(sweep_space()){
-            fprintf(stderr, "failed shift space for write batch.\n");
             return -1;
         }
         int seqno = versions_.add_sequence(1);

@@ -8,9 +8,11 @@ void compaction::settle_inputs(version *ver){
 
     std::set<basetable *> unique;
     unique.insert(inputs_[0][0]);
+    const int src_level= inputs_[0][0]->level;
+    const int dest_level = level_;
 
-    for (int delta=1; ; delta=1-delta) {
-        int level = level_-delta;
+    for (int delta=(src_level==dest_level?1:0); ; delta=1-delta) {
+        int level = dest_level-delta;
         int affected = 0;
         for (int j=0; j<ver->ssts[level].size(); ++j) {
             basetable *t = ver->ssts[level][j];

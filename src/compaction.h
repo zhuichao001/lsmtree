@@ -38,6 +38,14 @@ public:
         return inputs_[0].size()+inputs_[1].size();
     }
 
+    void print(){
+        for(int i=0; i<2; ++i){
+            for(basetable *t : inputs_[i]){
+                fprintf(stderr, "  compaction input %i level-%d sst-%d <%s,%s>\n", i, t->level, t->file_number, t->smallest.c_str(), t->largest.c_str());
+            }
+        }
+    }
+
 };
 
 #endif

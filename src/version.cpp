@@ -39,8 +39,6 @@ int version::get(const uint64_t seqno, const std::string &key, std::string &val)
             vset->cache_.insert(std::string(t->path), t);
         }
 
-        fprintf(stderr, "try find key:%s in level-0 sst-%d, <%s, %s>\n", key.c_str(), t->file_number, t->smallest.c_str(), t->largest.c_str());
-
         kvtuple tmp;
         int err = t->get(seqno, key, tmp);
         t->unref();
@@ -48,7 +46,6 @@ int version::get(const uint64_t seqno, const std::string &key, std::string &val)
             continue;
         }
 
-        fprintf(stderr, "found in level-0 sst-%d, %s:%s\n", t->file_number, tmp.ckey, tmp.cval);
         if(tmp.seqno>res.seqno){
             res = tmp;
         }
@@ -77,7 +74,6 @@ int version::get(const uint64_t seqno, const std::string &key, std::string &val)
         if(!t->iscached()){
             vset->cache_.insert(std::string(t->path), t);
         }
-        fprintf(stderr, "try find key:%s in level-%d sst-%d, <%s,%s> \n", key.c_str(), i, t->file_number, t->smallest.c_str(), t->largest.c_str());
         int err = t->get(seqno, key, val);
         t->unref();
         if(err==0 || err==ERROR_KEY_DELETED){
@@ -85,10 +81,8 @@ int version::get(const uint64_t seqno, const std::string &key, std::string &val)
             if(t->allowed_seeks==0){
                 hot_sst = t;
             }
-            fprintf(stderr, "found in level-%d sst-%d, %s:%s\n", i, t->file_number, key.c_str(), val.c_str());
             return 0;
         }
-        
     }
     return -1;
 }
@@ -150,7 +144,7 @@ compaction *versionset::plan_compact(){
     }
 
     c->settle_inputs(current_);
-    if(seek_too_many ){
+    if(seek_too_many){
         if(c->inputs_[1].size()==0){
             delete c;
             return nullptr;

@@ -34,6 +34,8 @@ class lsmtree{
     versionset versions_;
     snapshotlist snapshots_;
 
+    std::atomic<bool> compacting;
+
     int minor_compact();
     int major_compact();
 
@@ -46,7 +48,8 @@ class lsmtree{
 public:
     lsmtree():
         mutab_(nullptr),
-        immutab_(nullptr){
+        immutab_(nullptr),
+        compacting(false){
     }
 
     ~lsmtree(){
