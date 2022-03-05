@@ -266,10 +266,14 @@ int versionset::recover(){
         sscanf(token, "%d %d %s %s", &level, &fnumber, limit[0], limit[1]);
         fprintf(stderr, "RECOVER sstable level-%d sst-%d <%s,%s>\n", level, fnumber, limit[0], limit[1]);
 
-        sstable *sst = new sstable(level, fnumber, limit[0], limit[1]);
+        basetable *sst;
+        if(level>0){
+            sst = new sstable(level, fnumber, limit[0], limit[1]);
+        }else{
+            sst = new primarysst(fnumber, limit[0], limit[1]);
+        }
         sst->open();
         edit.add(level, sst);
-        std::string sstline = token;
 
         token = strtok(nullptr, SEPRATOR);
     }

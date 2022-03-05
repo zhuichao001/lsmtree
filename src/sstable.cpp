@@ -1,7 +1,7 @@
 #include "sstable.h"
 
 
-sstable::sstable(const int lev, const int fileno, const char*start, const char *end):
+sstable::sstable(const int lev, const int fileno, const char *start, const char *end):
     basetable(),
     fd(-1) {
     level = lev;

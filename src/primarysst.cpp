@@ -1,12 +1,19 @@
 #include "primarysst.h"
 
 
-primarysst::primarysst(const int fileno):
+primarysst::primarysst(const int fileno, const char*start, const char *end):
     basetable(),
     mem(nullptr){
     level = 0;
     file_number = fileno;
     sprintf(path, "%s/sst/%09d.sst\0", basedir.c_str(), fileno);
+
+    if(start!=nullptr){
+        smallest = start;
+    }
+    if(end!=nullptr){
+        largest = end;
+    }
 }
 
 primarysst::~primarysst(){

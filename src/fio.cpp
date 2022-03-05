@@ -228,7 +228,6 @@ int copy_file(const char * src, const char * dst) {
 }
 
 int rename_file(const char * src, const char * dst) {
-    //int fd = open(dst, O_DIRECTORY|O_RDONLY, 0664);
     if(::rename(src, dst)<0){
         perror("rename error");
         return -1;

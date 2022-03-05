@@ -23,7 +23,7 @@ class primarysst: public basetable{
     int restoremeta();
     int peek(int idxoffset, kvtuple &record);
 public:
-    primarysst(const int fileno);
+    primarysst(const int fileno, const char *start=nullptr, const char *end=nullptr);
     ~primarysst();
     int open();
     int close();
