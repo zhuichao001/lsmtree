@@ -104,11 +104,13 @@ int lsmtree::put(const woptions &opt, const std::string &key, const std::string 
     if(sweep_space()){
         return -1;
     }
-    int seqno = versions_.add_sequence(1);
-    if(mutab_->put(seqno, key, val)<0){ //TODO: USE Writebatch
+
+    wbatch wb;
+    if(wb.put(key, val)<0){
         return -1;
     }
-    return 0;
+
+    return write(opt, wb);
 }
 
 int lsmtree::del(const woptions &opt, const std::string &key){
@@ -116,12 +118,12 @@ int lsmtree::del(const woptions &opt, const std::string &key){
         return -1;
     }
 
-    int seqno = versions_.add_sequence(1);
-    if(mutab_->del(seqno, key)<0){
+    wbatch wb;
+    if(wb.del(key)<0){
         return -1;
     }
 
-    return 0;
+    return write(opt, wb);
 }
 
 int lsmtree::minor_compact(){
@@ -162,7 +164,7 @@ int lsmtree::major_compact(){
     }
     assert(c->inputs_[0].size()>0);
     versionedit edit;
-    if(c->size()==1){ 
+    if(c->size()==1){
         //directly move to next level
         edit.remove(c->inputs_[0][0]);
         edit.add(c->level(), c->inputs_[0][0]);
@@ -216,6 +218,7 @@ int lsmtree::major_compact(){
                 edit.add(destlevel, sst);
 
                 sst->put(t.seqno, std::string(t.ckey), std::string(t.cval), t.flag);
+                fprintf(stderr, "    first put %s:%s into level-%d sst-%d\n", t.ckey, t.cval, sst->level, sst->file_number);
             }
         }
         fprintf(stderr, "    >>>major compact into level:%d sst-%d range:[%s, %s], produced:%d->%d\n", destlevel, sst->file_number, sst->smallest.c_str(), sst->largest.c_str(), total, produced);
@@ -228,12 +231,7 @@ int lsmtree::major_compact(){
 }
 
 int lsmtree::write(const woptions &opt, const wbatch &bat){
-    int size = bat.size();
-    if(size<=0){
-        return -1;
-    }
-    int seqno = versions_.last_sequence();
-    versions_.add_sequence(size);
+    int seqno = versions_.add_sequence(bat.size());
     bat.scan([this, seqno](const char *key, const char *val, const int flag)->int{
         if(sweep_space()){
             return -1;
