@@ -227,12 +227,17 @@ int lsmtree::major_compact(){
     return 0;
 }
 
-int lsmtree::write(const wbatch &bat){
-    bat.scan([this](const char *key, const char *val, const int flag)->int{
+int lsmtree::write(const woptions &opt, const wbatch &bat){
+    int size = bat.size();
+    if(size<=0){
+        return -1;
+    }
+    int seqno = versions_.last_sequence();
+    versions_.add_sequence(size);
+    bat.scan([this, seqno](const char *key, const char *val, const int flag)->int{
         if(sweep_space()){
             return -1;
         }
-        int seqno = versions_.add_sequence(1);
         if(flag==FLAG_VAL){
             return mutab_->put(seqno, key, val);
         }else{

@@ -68,7 +68,7 @@ public:
     int del(const woptions &opt, const std::string &key);
     int get(const roptions &opt, const std::string &key, std::string &val);
     int put(const woptions &opt, const std::string &key, const std::string &val);
-    int write(const wbatch &bat);
+    int write(const woptions &opt, const wbatch &bat);
 
     snapshot * create_snapshot();
     int release_snapshot(snapshot *snap);

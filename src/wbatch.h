@@ -32,6 +32,10 @@ public:
         return 0;
     }
 
+    int size() const {
+        return rows.size();
+    }
+
 private:
     std::vector<kv_t> rows;
 };
