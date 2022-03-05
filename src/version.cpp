@@ -16,11 +16,12 @@ version::version(versionset *vs):
 
 version::~version(){
     for(int i=0; i<MAX_LEVELS; ++i){
-        for(int j=0; j<ssts[i].size(); ++j){
-            if(i>0 && ssts[i][j]->refnum()==1){
-                vset->cache_.evict(std::string(ssts[i][j]->path));
+        for(basetable *t : ssts[i]){
+            if(t->refnum()==1){
+                vset->cache_.evict(std::string(t->path));
+                t->remove();
             }
-            ssts[i][j]->unref();
+            t->unref();
         }
     }
 }

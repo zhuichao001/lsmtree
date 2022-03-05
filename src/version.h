@@ -19,20 +19,17 @@ class version {
     version *prev;
     version *next;
 
-    versionset *vset;
     int refnum;
-
+    versionset *vset;
     std::vector<basetable*> ssts[MAX_LEVELS];
-
-    //compact caused by allowed_seeks become zero
-    basetable *hot_sst;
 
     //max compaction score and corresponding level
     double crownd_score;
     int crownd_level;
+    //compact caused by allowed_seeks become zero
+    basetable *hot_sst;
 public:
     version(versionset *vs);
-
     ~version();
 
     void ref(){
@@ -50,9 +47,9 @@ public:
 
     void sort_sst(int level_idx){
         std::sort(ssts[level_idx].begin(), ssts[level_idx].end(), 
-                [] (const basetable *a, const basetable *b) { 
-                    return a->smallest < b->smallest; 
-                });
+            [] (const basetable *a, const basetable *b) { 
+                return a->smallest < b->smallest; 
+            });
     }
 
     int get(const uint64_t seqno, const std::string &key, std::string &val);
