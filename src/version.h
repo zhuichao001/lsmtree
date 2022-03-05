@@ -11,9 +11,8 @@
 #include "compaction.h"
 #include "tablecache.h"
 
-extern std::string basedir;
-
 class versionset;
+
 class version {
     friend class versionset;
     friend class compaction;

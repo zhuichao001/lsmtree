@@ -2,7 +2,7 @@
 #include "lsmtree.h"
 #include "clock.h"
 
-const int COUNT = 100000;
+const int COUNT = 300000;
 
 void test_w(lsmtree &db){
     woptions wopt;

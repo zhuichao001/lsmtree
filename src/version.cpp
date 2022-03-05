@@ -28,9 +28,6 @@ version::~version(){
 int version::get(const uint64_t seqno, const std::string &key, std::string &val){
     kvtuple res;
     res.seqno = 0;
-
-    fprintf(stderr, "to get %s\n", key.c_str());
-
     for(int j=0; j<ssts[0].size(); ++j){
         if(key<ssts[0][j]->smallest || key>ssts[0][j]->largest){
             continue;
@@ -67,32 +64,31 @@ int version::get(const uint64_t seqno, const std::string &key, std::string &val)
     }
 
     for(int i=1; i<MAX_LEVELS; ++i){
-        //std::vector<basetable*>::iterator it = std::lower_bound(ssts[i].begin(), ssts[i].end(), key, 
-        //        [](const basetable *b, const std::string &k) { return b->smallest < k; });
-        //if(it==ssts[i].end()){
-        //    continue;
-        //}
-        for(int j=0; j<ssts[i].size(); ++j){
-            basetable *t = ssts[i][j];
-            if(key<t->smallest || key>t->largest){ //TODO: smallest/largest saved in manifest
-                continue;
-            }
-            t->ref();
-            if(!t->iscached()){
-                vset->cache_.insert(std::string(t->path), t);
-            }
-            fprintf(stderr, "try find key:%s in level-%d sst-%d, <%s,%s> \n", key.c_str(), i, t->file_number, t->smallest.c_str(), t->largest.c_str());
-            int err = t->get(seqno, key, val);
-            t->unref();
-            if(err==0 || err==ERROR_KEY_DELETED){
-                t->allowed_seeks -= 1;
-                if(t->allowed_seeks==0){
-                    hot_sst = t;
-                }
-                fprintf(stderr, "found in level-%d sst-%d, %s:%s\n", i, t->file_number, key.c_str(), val.c_str());
-                return 0;
-            }
+        std::vector<basetable*>::iterator it = std::lower_bound(ssts[i].begin(), ssts[i].end(), key, 
+                [](const basetable *b, const std::string &k) { return b->largest < k; });
+        if(it==ssts[i].end()){
+            continue;
         }
+        basetable *t = *it;
+        if(key<t->smallest || key>t->largest){
+            continue;
+        }
+        t->ref();
+        if(!t->iscached()){
+            vset->cache_.insert(std::string(t->path), t);
+        }
+        fprintf(stderr, "try find key:%s in level-%d sst-%d, <%s,%s> \n", key.c_str(), i, t->file_number, t->smallest.c_str(), t->largest.c_str());
+        int err = t->get(seqno, key, val);
+        t->unref();
+        if(err==0 || err==ERROR_KEY_DELETED){
+            t->allowed_seeks -= 1;
+            if(t->allowed_seeks==0){
+                hot_sst = t;
+            }
+            fprintf(stderr, "found in level-%d sst-%d, %s:%s\n", i, t->file_number, key.c_str(), val.c_str());
+            return 0;
+        }
+        
     }
     return -1;
 }
