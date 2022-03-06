@@ -92,6 +92,21 @@ manifest:
 		 test_manifest.cpp \
 		 ../src/fio.cpp \
 		 -I../src
+major:
+	g++ -g -o run_test_major \
+		test_major.cpp \
+		../src/sstable.cpp \
+		../src/primarysst.cpp \
+		../src/version.cpp \
+		../src/hash.cpp \
+		../src/fio.cpp \
+		../src/encode.cpp \
+		../src/compaction.cpp \
+		../src/lsmtree.cpp \
+		../src/skiplist.cpp \
+		-lpthread \
+		-std=c++14 \
+		-I../src
 clean:
 	rm -rf run* data/
 

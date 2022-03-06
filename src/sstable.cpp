@@ -56,10 +56,10 @@ int sstable::load(){
             perror("pread error::");
             return -1;
         }
+        idxoffset = pos;
         if(meta.hashcode==0 && meta.datoffset==0){
             break;
         }
-        idxoffset = pos;
         codemap.insert(std::make_pair(meta.hashcode, meta));
         datoffset = meta.datoffset;
     }

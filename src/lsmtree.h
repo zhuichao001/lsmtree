@@ -37,7 +37,6 @@ class lsmtree{
     std::atomic<bool> compacting;
 
     int minor_compact();
-    int major_compact();
 
     int select_overlap(const int ln, std::vector<basetable*> &from, std::vector<basetable*> &to);
 
@@ -46,6 +45,7 @@ class lsmtree{
     void schedule_compaction();
 
 public:
+    int major_compact(compaction* c);
     lsmtree():
         mutab_(nullptr),
         immutab_(nullptr),

@@ -73,7 +73,11 @@ void lsmtree::schedule_compaction(){
             if(immutab_!=nullptr){
                 this->minor_compact();
             }else if(versions_.need_compact()){
-                this->major_compact();
+
+                compaction *c = versions_.plan_compact();
+                if(c!=nullptr){ //do nothing
+                    this->major_compact(c);
+                }
             }
             compacting = false;
         }
@@ -157,11 +161,7 @@ int lsmtree::minor_compact(){
     return 0;
 }
 
-int lsmtree::major_compact(){
-    compaction *c = versions_.plan_compact();
-    if(c==nullptr){ //do nothing
-        return 0;
-    }
+int lsmtree::major_compact(compaction* c){
     assert(c->inputs_[0].size()>0);
     versionedit edit;
     if(c->size()==1){
@@ -186,8 +186,7 @@ int lsmtree::major_compact(){
         sst->open();
         edit.add(destlevel, sst);
 
-        const int total=vec.size(); 
-        int produced = 1;
+        int n = 0; //merge keys
         std::string lastkey;
         make_heap(vec.begin(), vec.end(), basetable::compare_gt);
         while(!vec.empty()){
@@ -197,13 +196,14 @@ int lsmtree::major_compact(){
 
             kvtuple t;
             it.parse(t);
+
             it.next();
             if(it.valid()){
                 vec.push_back(it);
                 push_heap(vec.begin(), vec.end(), basetable::compare_gt);
             }
 
-            if(produced>0 && lastkey==t.ckey && t.seqno<snapshots_.smallest_sn()){
+            if(n++>0 && lastkey==t.ckey && t.seqno<snapshots_.smallest_sn()){
                 continue;
             }
 
@@ -212,16 +212,14 @@ int lsmtree::major_compact(){
             if(sst->put(t.seqno, std::string(t.ckey), std::string(t.cval), t.flag)==ERROR_SPACE_NOT_ENOUGH){
                 fprintf(stderr, "    >>>major compact into level:%d sst-%d range:[%s, %s]\n", destlevel, sst->file_number, sst->smallest.c_str(), sst->largest.c_str());
 
-                ++produced;
                 sst = new sstable(destlevel, versions_.next_fnumber());
                 sst->open();
                 edit.add(destlevel, sst);
 
                 sst->put(t.seqno, std::string(t.ckey), std::string(t.cval), t.flag);
-                fprintf(stderr, "    first put %s:%s into level-%d sst-%d\n", t.ckey, t.cval, sst->level, sst->file_number);
             }
         }
-        fprintf(stderr, "    >>>major compact into level:%d sst-%d range:[%s, %s], produced:%d->%d\n", destlevel, sst->file_number, sst->smallest.c_str(), sst->largest.c_str(), total, produced);
+        fprintf(stderr, "    >>>major compact into level:%d sst-%d range:[%s, %s]\n", destlevel, sst->file_number, sst->smallest.c_str(), sst->largest.c_str());
     }
 
     versions_.apply(&edit);

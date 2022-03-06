@@ -11,8 +11,8 @@
 extern std::string basedir;
 
 const int MAX_LEVELS = 9;
-const int SST_LIMIT = 1<<17; //default sst size:128KB
-const int MAX_ALLOWED_SEEKS = SST_LIMIT / 64;  //max seeks before compaction
+const int SST_LIMIT = 1<<18; //default sst size:256KB
+const int MAX_ALLOWED_SEEKS = SST_LIMIT / 256;  //max seeks before compaction
 
 //used for sst formation
 typedef struct{
