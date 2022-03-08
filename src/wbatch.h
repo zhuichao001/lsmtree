@@ -6,7 +6,6 @@
 #include <tuple>
 #include <vector>
 #include <functional>
-#include "type.h"
 
 typedef std::tuple<std::string, std::string, int> kv_t;
 

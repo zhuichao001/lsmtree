@@ -6,7 +6,7 @@
 #include <functional>
 #include <string>
 #include "tablecache.h"
-#include "type.h"
+#include "types.h"
 
 extern std::string basedir;
 
@@ -192,5 +192,12 @@ public:
         return kva.seqno < kvb.seqno;
     }
 };
+
+inline int loadkv(char *data, char **ckey, char **cval){
+    const int keylen = *(int*)(data);
+    *ckey = data+sizeof(int);
+    *cval = data+sizeof(int)+keylen+sizeof(int);
+    return 0;
+}
 
 #endif

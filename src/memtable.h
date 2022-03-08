@@ -3,7 +3,7 @@
 
 #include <string>
 #include <functional>
-#include "type.h"
+#include "types.h"
 #include "skiplist.h"
 
 const int MAX_MEMTAB_SIZE = 1<<20; //1MB

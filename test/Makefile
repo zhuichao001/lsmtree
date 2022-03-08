@@ -1,6 +1,5 @@
 all:
 	g++ -g -o run_test_default \
-		../src/encode.cpp \
 		../src/hash.cpp \
 		../src/memtable.cpp \
 		../src/primarysst.cpp \

@@ -13,7 +13,6 @@
 #include "error.h"
 #include "hash.h"
 #include "fio.h"
-#include "encode.h"
 
 
 class primarysst: public basetable{

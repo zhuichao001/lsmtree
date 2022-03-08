@@ -14,7 +14,6 @@
 #include "error.h"
 #include "hash.h"
 #include "fio.h"
-#include "encode.h"
 
 
 class sstable: public basetable {
