@@ -2,17 +2,19 @@ all:
 	g++ -g -o run_test_default \
 		../src/encode.cpp \
 		../src/hash.cpp \
-		../src/fio.cpp \
-		../src/skiplist.cpp \
+		../src/memtable.cpp \
 		../src/primarysst.cpp \
 		../src/sstable.cpp \
+		../src/lsmtree.cpp \
 		../src/compaction.cpp \
 		../src/version.cpp \
-		../src/lsmtree.cpp \
+		../../naughty/file/fio.cpp \
 		./test_default.cpp \
 		-lpthread \
 		-std=c++14 \
-		-I../src 
+		-I../../naughty/file \
+		-I../../wal \
+		-I../src
 kvtuple:
 	g++ -g -o run_test_kvtuple \
 		test_kvtuple.cpp \
@@ -37,6 +39,9 @@ memtable:
 	g++ -g -o run_test_memtable \
 		test_memtable.cpp \
 		../src/skiplist.cpp \
+		../../naughty/file/fio.cpp \
+		-I../../naughty/file \
+		-I../../wal \
 		-I../src
 compact:
 	g++ -g -o run_test_compact \

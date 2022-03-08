@@ -18,6 +18,7 @@
 #include "version.h"
 #include "options.h"
 #include "util.h"
+#include "walog.h"
 
 typedef std::pair<std::string, std::string> kvpair;
 
@@ -26,17 +27,23 @@ const int TIER_SST_COUNT(int level);
 const int MAX_COMPACT_LEVELS = 2; //everytime compact 2 levels at most
 
 class lsmtree{
+    int logidx_;
+    wal::walog *wal_;
+
     memtable *mutab_;
     memtable *immutab_;
     std::mutex mutex_;
     std::condition_variable level0_cv_;
 
     versionset versions_;
+
     snapshotlist snapshots_;
 
     std::atomic<bool> compacting;
 
     int minor_compact();
+
+    int major_compact(compaction* c);
 
     int select_overlap(const int ln, std::vector<basetable*> &from, std::vector<basetable*> &to);
 
@@ -44,12 +51,17 @@ class lsmtree{
 
     void schedule_compaction();
 
+    int recover();
+
 public:
-    int major_compact(compaction* c);
     lsmtree():
+        logidx_(0),
+        wal_(nullptr),
         mutab_(nullptr),
         immutab_(nullptr),
         compacting(false){
+        mutab_ = new memtable;
+        mutab_->ref();
     }
 
     ~lsmtree(){

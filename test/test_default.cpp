@@ -2,7 +2,7 @@
 #include "lsmtree.h"
 #include "clock.h"
 
-const int COUNT = 2000000;
+const int COUNT = 1000000;
 
 void test_w(lsmtree &db){
     woptions wopt;
@@ -47,7 +47,7 @@ int test(){
     }
 
     std::cout << "WRITE BEGIN " << timestamp() << std::endl;
-    test_w(db);
+    //test_w(db);
     std::cout << "WRITE END " << timestamp() << std::endl;
 
     std::cout << "READ BEGIN " << timestamp() << std::endl;

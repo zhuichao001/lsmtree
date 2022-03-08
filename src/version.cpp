@@ -204,30 +204,33 @@ int versionset::persist(const std::vector<basetable*> ssts[MAX_LEVELS]){
 
     char manifest_path[PATH_LEN];
     sprintf(manifest_path, "%s/meta/MANIFEST-%ld\0", basedir.c_str(), get_time_usec());
-    int fd = open_create(manifest_path);
-
-    fprintf(stderr, "persist MANIFEST: %s\n", manifest_path);
-
-    for(int level=0; level<MAX_LEVELS; ++level) {
-        for(int j=0; j<ssts[level].size(); ++j){
-            basetable *t = ssts[level][j];
-            char line[256];
-            sprintf(line, "%d %d %s %s\n", level, t->file_number, t->smallest.c_str(), t->largest.c_str());
-            write_file(fd, line, strlen(line));
+    {
+        int fd = open_create(manifest_path);
+        fprintf(stderr, "persist MANIFEST: %s\n", manifest_path);
+        for(int level=0; level<MAX_LEVELS; ++level) {
+            for(int j=0; j<ssts[level].size(); ++j){
+                basetable *t = ssts[level][j];
+                char line[256];
+                sprintf(line, "%d %d %s %s\n", level, t->file_number, t->smallest.c_str(), t->largest.c_str());
+                write_file(fd, line, strlen(line));
+            }
         }
+        ::close(fd);
     }
-    ::close(fd);
 
     char temporary[PATH_LEN];
     sprintf(temporary, "%s/.temporary\0", basedir.c_str());
 
     char data[256];
-    sprintf(data, "%d %s\0", last_sequence_, manifest_path);
+    sprintf(data, "%d %d %s\0", apply_logidx_, last_sequence_, manifest_path);
     write_file(temporary, data, strlen(data)); 
     char current[PATH_LEN];
     sprintf(current, "%s/CURRENT\0", basedir.c_str());
-    fprintf(stderr, "MV MANIFEST from %s to %s\n", temporary, current);
-    return rename_file(temporary, current);
+    fprintf(stderr, "MOVE MANIFEST from %s to %s\n", temporary, current);
+    if(rename_file(temporary, current)<0){
+        fprintf(stderr, "rename file failed\n");
+    }
+    return 0;
 }
 
 int versionset::recover(){
@@ -247,7 +250,7 @@ int versionset::recover(){
     if(read_file(current, data)<0){
         return -1;
     }
-    sscanf(data.c_str(), "%d %s\0", &last_sequence_, manifest_path);
+    sscanf(data.c_str(), "%d %d %s\0", &apply_logidx_, &last_sequence_, manifest_path);
     fprintf(stderr, "last_seqno:%d, manifest_path:%s\n", last_sequence_, manifest_path);
 
     versionedit edit;

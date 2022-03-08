@@ -100,6 +100,8 @@ class versionset {
 
     int next_fnumber_;
     int last_sequence_;
+
+    int apply_logidx_;
     
     version verhead_;
     version *current_;
@@ -109,6 +111,10 @@ public:
     tablecache cache_;
 
     versionset();
+
+    void apply_logidx(int idx){ apply_logidx_ = idx; }
+
+    int apply_logidx(){ return apply_logidx_; }
 
     int next_fnumber(){ return ++next_fnumber_; }
 

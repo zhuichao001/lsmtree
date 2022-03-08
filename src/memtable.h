@@ -1,25 +1,29 @@
 #ifndef _MEMTABLE_H
 #define _MEMTABLE_H
 
+#include <string>
 #include <functional>
-#include <string.h>
-#include "table.h"
+#include "type.h"
 #include "skiplist.h"
 
 const int MAX_MEMTAB_SIZE = 1<<20; //1MB
 const int SKIPLIST_MAX_HEIGHT = 10;
 const int BRANCH_SIZE = 16;
 
+typedef struct{
+    int logidx;
+    uint64_t seqno;
+    std::string val;
+    uint8_t flag;
+} onval;
+
+
 class memtable{
-    skiplist table_;
+    skiplist<onval *> table_;
     int size_;
     int refnum;
 public:
-    memtable():
-        table_(SKIPLIST_MAX_HEIGHT, BRANCH_SIZE),
-        size_(0),
-        refnum(0){
-    }
+    memtable();
 
     void ref(){
         ++refnum;
@@ -32,32 +36,11 @@ public:
         }
     }
 
-    int get(const uint64_t seqno, const std::string &key, std::string &val){
-        node *cur = table_.search(key);
-        while(cur!=nullptr){
-            if(cur->key!=key){
-                return -1;
-            }
-            if(cur->seqno>seqno){
-                cur = cur->forwards[0];
-            }else{
-                val = cur->val;
-                return 0;
-            }
-        }
-        return -1;
-    }
+    int get(const uint64_t seqno, const std::string &key, std::string &val);
 
-    int put(const uint64_t seqno, const std::string &key, const std::string &val, const uint8_t flag=FLAG_VAL){
-        size_ += key.size() + val.size() + sizeof(int)*4;
-        node *neo = table_.insert(seqno, key, val, flag);
-        assert(neo!=nullptr);
-        return 0;
-    }
+    int put(const int logidx, const uint64_t seqno, const std::string &key, const std::string &val, const uint8_t flag=FLAG_VAL);
 
-    int del(const uint64_t seqno, const std::string &key){
-        return put(seqno, key, "", FLAG_DEL);
-    }
+    int del(const int logidx, const uint64_t seqno, const std::string &key);
 
     int size(){
         return size_;
@@ -67,13 +50,7 @@ public:
         table_.clear();
     }
 
-    int scan(const uint64_t seqno, std::function<int(uint64_t seqno, const std::string, const std::string, int)> visit){
-        for(skiplist::iterator it = table_.begin(); it!=table_.end(); ++it){
-            node * p = *it;
-            visit(p->seqno, p->key, p->val, p->value_type);
-        }
-        return 0;
-    }
+    int scan(const uint64_t seqno, std::function<int(int /*logidx*/, uint64_t /*seqno*/, const std::string /*key*/, const std::string /*val*/, int /*flag*/)> visit);
 
 };
 

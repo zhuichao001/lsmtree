@@ -10,7 +10,7 @@ public:
 };
 
 class tablecache{
-    LRUCache<std::string, cached *> lru;
+    LRUCache<std::string, cached* > lru;
 public:
     tablecache():
         lru(512){ //default:512 sstables will be cached at most

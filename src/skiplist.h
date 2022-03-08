@@ -10,26 +10,22 @@
 #include <string>
 
 
+template<class T>
 class node {
     class skiplist;
     friend class skiplist;
 public:
     std::string key;
-    std::string val;
-    const uint64_t seqno; //sequence number
-    uint8_t value_type;
+    T val;
     int height;
-    node **forwards;  // next for i'th layer
+    node<T> **forwards;  // next for i'th layer
 
-    node(const int level, const uint64_t seq, const std::string &k, const std::string &v, const int flag):
+    node(const int level, const std::string &k, const T &v):
         height(level),
-        seqno(seq),
         key(k),
-        val(v),
-        value_type(flag){
+        val(v) {
         assert(level>0);
-        //fprintf(stderr, "    new level:%d, seqno:%d, key:%s, val:%s, flag:%d\n", level, seqno, k.c_str(), v.c_str(), flag);
-        forwards = new node *[height];
+        forwards = new node<T> *[height];
         assert(forwards!=nullptr);
         for(int i=0; i<height; ++i){
             forwards[i] = nullptr;
@@ -37,6 +33,9 @@ public:
     }
     
     ~node(){
+        if(val){
+            delete val;
+        }
         delete []forwards;
     }
 
@@ -45,16 +44,17 @@ public:
     }
 
     void print(){
-        fprintf(stderr, "[node] key:%s, val:%s", key.c_str(), val.c_str());
+        fprintf(stderr, "[node] key:%s\n", key.c_str());
         for(int i=0; i<height; ++i){
             fprintf(stderr, "    i:%d, next:%p\n", i, forwards[i]);
         }
     }
 };
 
+template<class T>
 class skiplist {
-    node *head;
-    node *nil;
+    node<T> *head;
+    node<T> *nil;
 
     int length;
     int height;
@@ -71,11 +71,99 @@ class skiplist {
     }
 
 public:
+
+    skiplist(int maxh, int branch):
+        MAXHEIGHT(maxh),
+        BRANCHING(branch){
+        length = 0;
+        height = 1;
+        head = new node<T>(MAXHEIGHT, "", nullptr);
+        nil = new node<T>(MAXHEIGHT, std::string(256, '\xff'), nullptr); 
+        for(int i=0; i<MAXHEIGHT; ++i){
+            head->forwards[i] = nil;
+        }
+    }
+
+    ~skiplist(){
+        clear();
+        delete nil;
+        delete head;
+    }
+
+    int size(){ return length; }
+
+    node<T> *search(const std::string &k){
+        node<T> *cur = this->head;
+        for(int i=this->height-1; i>=0; --i){
+            while(cur->forwards[i]->key<k){
+                cur = cur->forwards[i];
+            }
+            if(cur->forwards[i]->key==k){
+                return cur->forwards[i];
+            }
+        }
+        return nullptr;
+    }
+
+    node<T> *insert(const std::string &k, T v){
+        node<T> *updates[this->MAXHEIGHT];
+        node<T> *cur = this->head;
+        for(int i=this->height-1; i>=0; --i){
+            while(cur->forwards[i]->key < k){
+                cur = cur->forwards[i];
+            }
+            updates[i] = cur;
+        }
+    
+        //insert
+        const int H = this->level();
+        node<T> *neo = new node<T>(H, k, v);
+        if(neo==nullptr){
+            fprintf(stderr, "can't malloc when insert");
+            return nullptr;
+        }
+        for(int i=0; i<std::min(this->height, H); ++i){
+            neo->forwards[i] = updates[i]->forwards[i];
+            updates[i]->forwards[i] = neo;
+        }
+    
+        for(int i=this->height; i<H; ++i) {
+            neo->forwards[i] = nil;
+            head->forwards[i] = neo;
+        }
+        this->height = std::max(this->height, H);
+        ++length;
+        return neo;
+    }
+
+    void print(){
+        std::cout << "level:" << this->height << std::endl;
+        for(int i=this->height-1; i>=0; --i){
+            node<T> *cur = this->head;
+            while(cur != this->nil){
+                std::cout << cur->key << ":" << cur->val << " |-> ";
+                cur = cur->forwards[i];
+            }
+            std::cout << "nil" << std::endl;
+        }
+    }
+
+    void clear(){
+        node<T> *cur = head->forwards[0];
+        while(cur!=nil){
+            node<T> *tmp = cur;
+            cur = cur->forwards[0];
+            delete tmp;
+        }
+        head->forwards[0] = nil;
+    }
+
+public:
     class iterator{
     public:
-        node *ptr;
+        node<T> *ptr;
 
-        node * operator *(){
+        node<T> * operator *(){
             return ptr;
         }
 
@@ -89,24 +177,6 @@ public:
         }
     };
 
-    skiplist(int maxh, int branch):
-        MAXHEIGHT(maxh),
-        BRANCHING(branch){
-        length = 0;
-        height = 1;
-        head = new node(MAXHEIGHT, 0, "", "", -1);
-        nil = new node(MAXHEIGHT, 0, std::string(256, '\xff'), "", -1); 
-        for(int i=0; i<MAXHEIGHT; ++i){
-            head->forwards[i] = nil;
-        }
-    }
-
-    ~skiplist(){
-        clear();
-        delete nil;
-        delete head;
-    }
-
     iterator begin(){
         iterator it;
         it.ptr = head->next();
@@ -119,16 +189,6 @@ public:
         return it;
     }
 
-    int size(){ return length; }
-
-    node *search(const std::string &k);
-
-    node *insert(const uint64_t seqno, const std::string &k, const std::string &v, const int flag);
-
-    void print();
-
-    void clear();
 };
-
 
 #endif

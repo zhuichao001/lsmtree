@@ -1,6 +1,6 @@
+#include <algorithm>
 #include "lsmtree.h"
 #include "sstable.h"
-#include<algorithm>
 
 
 thread_pool_t backstage(1);
@@ -18,10 +18,37 @@ int lsmtree::open(const options *opt, const char *dirpath){
         mkdir(path);
     }
 
+    wal::option walopt = {20971520, 1024};
+    char logpath[64];
+    sprintf(logpath, "%s/log/\0", basedir.c_str());
+    wal_ = new wal::walog(walopt, logpath);
+
+    recover();
+
+    return 0;
+}
+
+int lsmtree::recover(){
     versions_.recover();
 
-    mutab_ = new memtable;
-    mutab_->ref();
+    int startidx = versions_.apply_logidx()+1; 
+    int endidx = -1;
+    wal_->truncatefront(startidx);
+    wal_->lastindex(endidx);
+    for(int idx=startidx; idx<=endidx; ++idx){
+        std::string row;
+        wal_->read(idx, row);
+        int seqno=0;
+        char kv[2][523];
+        int flag=0;
+        memset(kv, 0, sizeof(kv));
+        sscanf(row.c_str(), "%d %s %s %d", &seqno, kv[0], kv[1], &flag);
+        if(flag==FLAG_VAL){
+            mutab_->put(idx, seqno, kv[0], kv[1]);
+        }else{
+            mutab_->del(idx, seqno, kv[0]);
+        }
+    }
     return 0;
 }
 
@@ -135,10 +162,12 @@ int lsmtree::minor_compact(){
         return -1;
     }
 
+    int persist_logidx = -1;
     versionedit edit;
     primarysst *sst = new primarysst(versions_.next_fnumber());
     sst->open();
-    immutab_->scan(versions_.last_sequence(), [=, &edit, &sst](const uint64_t seqno, const std::string &key, const std::string &val, int flag) ->int {
+    immutab_->scan(versions_.last_sequence(), [=, &edit, &sst, &persist_logidx](const int logidx, const uint64_t seqno, const std::string &key, const std::string &val, int flag) ->int {
+        persist_logidx = logidx;
         if(sst->put(seqno, key, val, flag)==ERROR_SPACE_NOT_ENOUGH){
             fprintf(stderr, "minor compact into sst-%d range:[%s, %s]\n", sst->file_number, sst->smallest.c_str(), sst->largest.c_str());
             edit.add(0, sst);
@@ -151,6 +180,7 @@ int lsmtree::minor_compact(){
     fprintf(stderr, "minor compact into sst-%d range:[%s, %s]\n", sst->file_number, sst->smallest.c_str(), sst->largest.c_str());
     edit.add(0, sst);
 
+    versions_.apply_logidx(persist_logidx);
     versions_.apply(&edit);
     versions_.current()->calculate();
     immutab_->unref();
@@ -234,10 +264,16 @@ int lsmtree::write(const woptions &opt, const wbatch &bat){
         if(sweep_space()){
             return -1;
         }
+
+        char log[1024];
         if(flag==FLAG_VAL){
-            return mutab_->put(seqno, key, val);
+            sprintf(log, "%d %s %s %d\n\0", seqno, key, val, flag);
+            wal_->write(++logidx_, log);
+            return mutab_->put(logidx_, seqno, key, val);
         }else{
-            return mutab_->del(seqno, key);
+            sprintf(log, "%d %s * %d\n\0", seqno, key, flag);
+            wal_->write(++logidx_, log);
+            return mutab_->del(logidx_, seqno, key);
         }
     });
     return 0;
@@ -250,4 +286,3 @@ snapshot * lsmtree::create_snapshot(){
 int lsmtree::release_snapshot(snapshot *snap){
     return snapshots_.destroy(snap);
 }
-

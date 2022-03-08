@@ -6,62 +6,13 @@
 #include <functional>
 #include <string>
 #include "tablecache.h"
-#include "table.h"
+#include "type.h"
 
 extern std::string basedir;
 
 const int MAX_LEVELS = 9;
 const int SST_LIMIT = 1<<18; //default sst size:256KB
 const int MAX_ALLOWED_SEEKS = SST_LIMIT / 256;  //max seeks before compaction
-
-//used for sst formation
-typedef struct{
-    uint64_t seqno;
-    int hashcode;
-    int datoffset;
-    int datlen;
-    int flag;
-}rowmeta;
-
-//used for row data access
-class kvtuple{
-    char *buffer;
-public:
-    uint64_t seqno;
-    char *ckey;
-    char *cval;
-    int flag;
-
-    kvtuple():
-        seqno(0),
-        ckey(nullptr),
-        cval(nullptr),
-        flag(0),
-        buffer(nullptr){
-    }
-
-    kvtuple(uint64_t seq, char *k, char *v, int f):
-        seqno(seq),
-        ckey(k),
-        cval(v),
-        flag(f),
-        buffer(nullptr) {
-    }
-
-    void reserve(const int size){
-        buffer = new char[size];
-    }
-
-    char *data(){
-        return buffer;
-    }
-
-    ~kvtuple(){
-        if(buffer!=nullptr){
-            delete buffer;
-        }
-    }
-};
 
 class basetable: public cached {
 public:

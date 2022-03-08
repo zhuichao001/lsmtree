@@ -10,7 +10,6 @@
 #include <string.h>
 #include <errno.h>
 #include <math.h>
-#include "skiplist.h"
 #include "basetable.h"
 #include "error.h"
 #include "hash.h"

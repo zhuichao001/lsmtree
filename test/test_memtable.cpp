@@ -14,7 +14,7 @@ void test(){
         
         std::string key=k;
         std::string val=v;
-        tab.put(0, key, val);
+        tab.put(i, 0, key, val);
 
         std::string rval;
         tab.get(0, key, rval);
