@@ -105,7 +105,7 @@ public:
         return nullptr;
     }
 
-    node<T> *insert(const std::string &k, T v){
+    node<T> *insert(const std::string &k, T &v){
         node<T> *updates[this->MAXHEIGHT];
         node<T> *cur = this->head;
         for(int i=this->height-1; i>=0; --i){
@@ -118,10 +118,6 @@ public:
         //insert
         const int H = this->level();
         node<T> *neo = new node<T>(H, k, v);
-        if(neo==nullptr){
-            fprintf(stderr, "can't malloc when insert");
-            return nullptr;
-        }
         for(int i=0; i<std::min(this->height, H); ++i){
             neo->forwards[i] = updates[i]->forwards[i];
             updates[i]->forwards[i] = neo;
@@ -160,9 +156,9 @@ public:
 
 public:
     class iterator{
-    public:
         node<T> *ptr;
-
+        friend class skiplist;
+    public:
         node<T> * operator *(){
             return ptr;
         }

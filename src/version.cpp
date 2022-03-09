@@ -161,7 +161,7 @@ compaction *versionset::plan_compact(){
     return c;
 }
 
-void versionset::apply(versionedit *edit){
+version *versionset::apply(versionedit *edit){
     version *neo = new version(this);
     for(int i=0; i<MAX_LEVELS; ++i){
         std::vector<basetable*> &added = edit->addfiles[i];
@@ -191,8 +191,7 @@ void versionset::apply(versionedit *edit){
     }
 
     this->persist(neo->ssts);
-
-    this->appoint(neo);
+    return neo;
 }
 
 int versionset::persist(const std::vector<basetable*> ssts[MAX_LEVELS]){ 

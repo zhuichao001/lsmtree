@@ -18,7 +18,6 @@
 class primarysst: public basetable{
     char *mem;
     std::multimap<int, kvtuple> codemap; //hashcode => kvtuple(in order to speed up)
-    int restoremeta();
     int peek(int idxoffset, kvtuple &record);
 public:
     primarysst(const int fileno, const char *start=nullptr, const char *end=nullptr);

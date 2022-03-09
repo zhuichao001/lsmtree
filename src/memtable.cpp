@@ -1,11 +1,5 @@
 #include "memtable.h"
 
-memtable::memtable():
-    table_(SKIPLIST_MAX_HEIGHT, BRANCH_SIZE),
-    size_(0),
-    refnum(0){
-}
-
 int memtable::get(const uint64_t seqno, const std::string &key, std::string &val){
     node<onval *> *cur = table_.search(key);
     while(cur!=nullptr){
@@ -35,7 +29,7 @@ int memtable::del(const int logidx, const uint64_t seqno, const std::string &key
     return put(logidx, seqno, key, val, FLAG_DEL);
 }
 
-int memtable::scan(const uint64_t seqno, std::function<int(int /*logidx*/, uint64_t /*seqno*/, const std::string, const std::string, int flag)> visit){
+int memtable::scan(const uint64_t seqno, std::function<int(int /*logidx*/, uint64_t /*seqno*/, const std::string &/*key*/, const std::string &/*val*/, int /*flag*/)> visit){
     for(skiplist<onval *>::iterator it = table_.begin(); it!=table_.end(); ++it){
         node<onval *> *p = *it;
         onval *v = p->val;

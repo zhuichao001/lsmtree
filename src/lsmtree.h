@@ -35,24 +35,16 @@ class lsmtree{
     std::mutex mutex_;
     std::condition_variable level0_cv_;
 
+    std::atomic<bool> compacting;
     versionset versions_;
-
     snapshotlist snapshots_;
 
-    std::atomic<bool> compacting;
-
     int minor_compact();
-
     int major_compact(compaction* c);
-
     int select_overlap(const int ln, std::vector<basetable*> &from, std::vector<basetable*> &to);
-
     int sweep_space();
-
     void schedule_compaction();
-
     int recover();
-
 public:
     lsmtree():
         logidx_(0),
@@ -76,7 +68,6 @@ public:
     }
 
     int open(const options *opt, const char *basedir);
-
     int del(const woptions &opt, const std::string &key);
     int get(const roptions &opt, const std::string &key, std::string &val);
     int put(const woptions &opt, const std::string &key, const std::string &val);

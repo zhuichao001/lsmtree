@@ -23,7 +23,11 @@ class memtable{
     int size_;
     int refnum;
 public:
-    memtable();
+    memtable():
+        table_(SKIPLIST_MAX_HEIGHT, BRANCH_SIZE),
+        size_(0),
+        refnum(0){
+    }
 
     void ref(){
         ++refnum;
@@ -50,7 +54,7 @@ public:
         table_.clear();
     }
 
-    int scan(const uint64_t seqno, std::function<int(int /*logidx*/, uint64_t /*seqno*/, const std::string /*key*/, const std::string /*val*/, int /*flag*/)> visit);
+    int scan(const uint64_t seqno, std::function<int(int /*logidx*/, uint64_t /*seqno*/, const std::string &/*key*/, const std::string &/*val*/, int /*flag*/)> visit);
 
 };
 

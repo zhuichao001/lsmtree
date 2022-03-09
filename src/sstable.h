@@ -20,7 +20,6 @@ class sstable: public basetable {
     int fd;
     std::multimap<int, rowmeta> codemap; //hashcode => datoffset
     int peek(int idxoffset, kvtuple &record);
-    int endindex();
 public:
     sstable(const int lev, const int fileno, const char *start=nullptr, const char *end=nullptr);
     int open();

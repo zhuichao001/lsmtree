@@ -176,7 +176,3 @@ int sstable::peek(int idxoffset, kvtuple &record) {
     record.flag = meta.flag;
     return 0;
 }
-
-int sstable::endindex(){
-    return idxoffset;
-}

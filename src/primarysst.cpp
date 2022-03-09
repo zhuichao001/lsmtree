@@ -56,9 +56,8 @@ int primarysst::load(){
     idxoffset = 0;
     datoffset = SST_LIMIT;
     for(int pos=0; pos<SST_LIMIT; pos+=sizeof(rowmeta)){
-        const rowmeta meta = *(rowmeta*)(mem+pos);
-
         idxoffset = pos;
+        const rowmeta meta = *(rowmeta*)(mem+pos);
         if(meta.hashcode==0 && meta.datoffset==0){
             break;
         }

@@ -147,7 +147,7 @@ public:
 
     compaction *plan_compact();
 
-    void apply(versionedit *edit);
+    version *apply(versionedit *edit);
 
     int persist(const std::vector<basetable*> ssts[MAX_LEVELS]);
 
