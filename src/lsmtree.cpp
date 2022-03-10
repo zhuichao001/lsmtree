@@ -53,21 +53,29 @@ int lsmtree::recover(){
 
 int lsmtree::get(const roptions &opt, const std::string &key, std::string &val){
     int seqno = (opt.snap==nullptr)? versions_.last_sequence() : opt.snap->sequence();
-    version *cur = nullptr; 
+    memtable *mtab = nullptr;
+    memtable *imtab = nullptr;
+    version *ver = nullptr;
     {
         std::unique_lock<std::mutex> lock{mutex_};
+        mtab = mutab_;
+        imtab = immutab_;
+        ver = versions_.current();
         mutab_->ref();
         if(immutab_!=nullptr){
             immutab_->ref();
         }
-        cur = versions_.current();
-        cur->ref();
+        ver->ref();
     }
 
     {
-        int err = mutab_->get(seqno, key, val);
-        mutab_->unref();
+        int err = mtab->get(seqno, key, val);
+        mtab->unref();
         if(err==0){
+            if(imtab!=nullptr){
+                imtab->unref();
+            }
+            ver->unref();
             return 0;
         }
     }
@@ -76,13 +84,14 @@ int lsmtree::get(const roptions &opt, const std::string &key, std::string &val){
         int err = immutab_->get(seqno, key, val);
         immutab_->unref();
         if(err==0){
+            ver->unref();
             return 0;
         }
     }
 
     {
-        int err = cur->get(seqno, key, val);
-        cur->unref();
+        int err = ver->get(seqno, key, val);
+        ver->unref();
         schedule_compaction();
         return err;
     }
@@ -92,37 +101,38 @@ void lsmtree::schedule_compaction(){
     if(compacting){
         return;
     }
+
     compacting = true;
     backstage.post([this]{
         {
-            {
-                std::unique_lock<std::mutex> lock{mutex_};
-                if(immutab_!=nullptr){
-                    lock.unlock();
-                    this->minor_compact();
-                }
-            }
+            if(immutab_!=nullptr){
+                this->minor_compact();
+            } 
+            bool compacted = false;
             if(versions_.need_compact()){
                 compaction *c = versions_.plan_compact();
                 if(c!=nullptr){ //do nothing
                     this->major_compact(c);
+                    compacted = true;
                 }
             }
             compacting = false;
+            if(compacted){
+                schedule_compaction();
+            }
         }
-        schedule_compaction();
     });
 }
 
 int lsmtree::sweep_space(){
-    std::unique_lock<std::mutex> lock{mutex_};
     if(mutab_->size() < MAX_MEMTAB_SIZE){
         return 0;
     }
 
+    std::unique_lock<std::mutex> lock{mutex_};
     if (immutab_!=nullptr) {
         fprintf(stderr, "level-0 wait\n");
-        level0_cv_.wait(lock);
+        solid_cv_.wait(lock);
         return 0;
     } else {
         immutab_ = mutab_;
@@ -137,7 +147,6 @@ int lsmtree::put(const woptions &opt, const std::string &key, const std::string 
     if(wb.put(key, val)<0){
         return -1;
     }
-
     return write(opt, wb);
 }
 
@@ -146,7 +155,6 @@ int lsmtree::del(const woptions &opt, const std::string &key){
     if(wb.del(key)<0){
         return -1;
     }
-
     return write(opt, wb);
 }
 
@@ -170,20 +178,19 @@ int lsmtree::minor_compact(){
         }
         return 0;
     });
+
     fprintf(stderr, "minor compact into sst-%d range:[%s, %s]\n", sst->file_number, sst->smallest.c_str(), sst->largest.c_str());
     edit.add(0, sst);
 
     versions_.apply_logidx(persist_logidx);
     version *neo = versions_.apply(&edit);
-    immutab_->unref();
-    immutab_ = nullptr;
-    level0_cv_.notify_all();
-
     {
         std::unique_lock<std::mutex> lock{mutex_};
-        versions_.appoint(neo);
+        immutab_->unref();
+        immutab_ = nullptr;
     }
-
+    versions_.appoint(neo);
+    solid_cv_.notify_all();
     versions_.current()->calculate();
     return 0;
 }
@@ -252,7 +259,7 @@ int lsmtree::major_compact(compaction* c){
     version * neo = versions_.apply(&edit);
 
     {
-        std::unique_lock<std::mutex> lock{mutex_};
+        //std::unique_lock<std::mutex> lock{mutex_};
         versions_.appoint(neo);
     }
 

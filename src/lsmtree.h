@@ -33,7 +33,7 @@ class lsmtree{
     memtable *mutab_;
     memtable *immutab_;
     std::mutex mutex_;
-    std::condition_variable level0_cv_;
+    std::condition_variable solid_cv_;
 
     std::atomic<bool> compacting;
     versionset versions_;

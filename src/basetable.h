@@ -10,7 +10,7 @@
 
 extern std::string basedir;
 
-const int MAX_LEVELS = 9;
+const int MAX_LEVELS = 8;
 const int SST_LIMIT = 1<<18; //default sst size:256KB
 const int MAX_ALLOWED_SEEKS = SST_LIMIT / 256;  //max seeks before compaction
 
@@ -22,10 +22,6 @@ public:
     int idxoffset;
     int datoffset;
 
-    enum {NORMAL, COMPACTING};
-    int state;
-
-    int ref_num;
     int allowed_seeks;
     int file_number;
     int file_size;
@@ -33,19 +29,21 @@ public:
     std::string smallest;
     std::string largest;
 
+    int key_num;
+    int ref_num;
     bool incache;
 
     basetable():
         level(0),
         idxoffset(0),
         datoffset(SST_LIMIT),
-        state(NORMAL),
-        ref_num(0),
         file_number(0),
         file_size(0),
         allowed_seeks(MAX_ALLOWED_SEEKS),
         smallest(64, '\xff'),
         largest(""),
+        key_num(0),
+        ref_num(0),
         incache(false){
     }
 

@@ -92,13 +92,13 @@ void version::calculate(){
     crownd_score = 0.0;
     crownd_level = -1;
     for(int i=0; i<MAX_LEVELS; ++i){
-        double total = 0.0;
+        int total = 0;
         for(int j=0; j<ssts[i].size(); ++j){
             total += ssts[i][j]->filesize();
         }
-        const uint64_t quota_size = max_level_size(i);
-        if(total/quota_size > crownd_score){
-            crownd_score = total/quota_size;
+        const double rate = (double)total/max_level_size(i);
+        if(rate > crownd_score){
+            crownd_score = rate;
             crownd_level = i;
         }
     }
@@ -210,7 +210,7 @@ int versionset::persist(const std::vector<basetable*> ssts[MAX_LEVELS]){
             for(int j=0; j<ssts[level].size(); ++j){
                 basetable *t = ssts[level][j];
                 char line[256];
-                sprintf(line, "%d %d %s %s\n", level, t->file_number, t->smallest.c_str(), t->largest.c_str());
+                sprintf(line, "%d %d %s %s %d\n", level, t->file_number, t->smallest.c_str(), t->largest.c_str(), t->key_num);
                 write_file(fd, line, strlen(line));
             }
         }
@@ -262,18 +262,18 @@ int versionset::recover(){
     const char *SEPRATOR = "\n";
     char *token = strtok(const_cast<char*>(data.c_str()), SEPRATOR);
     while(token!=nullptr){
-        int level=0, fnumber=0;
+        int level=0, fnumber=0, keynum=0;
         char limit[2][64];
         memset(limit, 0, sizeof(limit));
         fprintf(stderr, "token:[%s]\n", token);
-        sscanf(token, "%d %d %s %s", &level, &fnumber, limit[0], limit[1]);
+        sscanf(token, "%d %d %s %s %s %d", &level, &fnumber, limit[0], limit[1], &keynum);
         fprintf(stderr, "RECOVER sstable level-%d sst-%d <%s,%s>\n", level, fnumber, limit[0], limit[1]);
 
         basetable *sst;
         if(level>0){
-            sst = new sstable(level, fnumber, limit[0], limit[1]);
+            sst = new sstable(level, fnumber, limit[0], limit[1], keynum);
         }else{
-            sst = new primarysst(fnumber, limit[0], limit[1]);
+            sst = new primarysst(fnumber, limit[0], limit[1], keynum);
         }
         sst->open();
         edit.add(level, sst);

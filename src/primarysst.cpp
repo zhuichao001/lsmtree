@@ -1,7 +1,7 @@
 #include "primarysst.h"
 
 
-primarysst::primarysst(const int fileno, const char*start, const char *end):
+primarysst::primarysst(const int fileno, const char*start, const char *end, int keys):
     basetable(),
     mem(nullptr){
     level = 0;
@@ -14,6 +14,7 @@ primarysst::primarysst(const int fileno, const char*start, const char *end):
     if(end!=nullptr){
         largest = end;
     }
+    key_num = keys;
 }
 
 primarysst::~primarysst(){
@@ -111,7 +112,9 @@ int primarysst::put(const uint64_t seqno, const std::string &key, const std::str
     kvtuple t(seqno, ckey, cval, flag);
     codemap.insert(std::make_pair(hashcode, t));
 
-    file_size += sizeof(int)+keylen+sizeof(int)+vallen + sizeof(meta);
+    ++key_num;
+    const int rowlen = sizeof(int)+keylen+sizeof(int)+vallen + sizeof(meta);
+    file_size += rowlen;
     uplimit(key);
     return 0;
 }

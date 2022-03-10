@@ -126,7 +126,9 @@ public:
 
     int add_sequence(int cnt){ last_sequence_ += cnt; return last_sequence_; }
 
-    version *current(){ return current_; }
+    version *current(){ 
+        return current_; 
+    }
 
     void appoint(version *ver){
         if(current_!=nullptr){

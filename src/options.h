@@ -17,6 +17,7 @@ struct roptions{
     }
 };
 
+//for write
 struct woptions{
     bool sync;
 };

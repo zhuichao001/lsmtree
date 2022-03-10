@@ -1,7 +1,7 @@
 #include "sstable.h"
 
 
-sstable::sstable(const int lev, const int fileno, const char *start, const char *end):
+sstable::sstable(const int lev, const int fileno, const char *start, const char *end, int keys):
     basetable(),
     fd(-1) {
     level = lev;
@@ -14,6 +14,7 @@ sstable::sstable(const int lev, const int fileno, const char *start, const char 
     if(end!=nullptr){
         largest = end;
     }
+    key_num = keys;
 }
 
 int sstable::open(){
@@ -129,6 +130,7 @@ int sstable::put(const uint64_t seqno, const std::string &key, const std::string
     pwrite(fd, (void*)&meta, sizeof(rowmeta), idxoffset);
     idxoffset += sizeof(rowmeta);
 
+    ++key_num;
     const int rowlen = sizeof(int)+keylen+sizeof(int)+vallen + sizeof(meta);
     file_size += rowlen;
     uplimit(key);
