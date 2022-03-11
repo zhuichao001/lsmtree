@@ -107,20 +107,16 @@ void lsmtree::schedule_compaction(){
         {
             if(immutab_!=nullptr){
                 this->minor_compact();
-            } 
-            bool compacted = false;
+            }
             if(versions_.need_compact()){
                 compaction *c = versions_.plan_compact();
                 if(c!=nullptr){ //do nothing
                     this->major_compact(c);
-                    compacted = true;
                 }
             }
             compacting = false;
-            if(compacted){
-                schedule_compaction();
-            }
         }
+        schedule_compaction();
     });
 }
 
@@ -132,7 +128,7 @@ int lsmtree::sweep_space(){
     std::unique_lock<std::mutex> lock{mutex_};
     if (immutab_!=nullptr) {
         fprintf(stderr, "level-0 wait\n");
-        solid_cv_.wait(lock);
+        solidify_.wait(lock);
         return 0;
     } else {
         immutab_ = mutab_;
@@ -184,16 +180,14 @@ int lsmtree::minor_compact(){
     version *neo = versions_.apply(&edit);
     versions_.apply_logidx(persist_logidx);
 
-    versions_.appoint(neo);
-    memtable *imtab = immutab_;
-    immutab_ = nullptr;
-
     {
         std::unique_lock<std::mutex> lock{mutex_};
-        solid_cv_.notify_all();
+        versions_.appoint(neo);
+        immutab_->unref();
+        immutab_ = nullptr;
+        solidify_.notify_all();
     }
 
-    imtab->unref();
     versions_.current()->calculate();
     return 0;
 }
@@ -260,7 +254,10 @@ int lsmtree::major_compact(compaction* c){
     }
 
     version * neo = versions_.apply(&edit);
-    versions_.appoint(neo);
+    {
+        std::unique_lock<std::mutex> lock{mutex_};
+        versions_.appoint(neo);
+    }
 
     versions_.current()->calculate();
     fprintf(stderr, "major compact DONE!!!\n");
