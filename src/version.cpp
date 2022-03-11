@@ -265,7 +265,6 @@ int versionset::recover(){
         int level=0, fnumber=0, keynum=0;
         char limit[2][64];
         memset(limit, 0, sizeof(limit));
-        fprintf(stderr, "token:[%s]\n", token);
         sscanf(token, "%d %d %s %s %s %d", &level, &fnumber, limit[0], limit[1], &keynum);
         fprintf(stderr, "RECOVER sstable level-%d sst-%d <%s,%s>\n", level, fnumber, limit[0], limit[1]);
 

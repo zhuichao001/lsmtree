@@ -55,43 +55,43 @@ int lsmtree::get(const roptions &opt, const std::string &key, std::string &val){
     int seqno = (opt.snap==nullptr)? versions_.last_sequence() : opt.snap->sequence();
     memtable *mtab = nullptr;
     memtable *imtab = nullptr;
-    version *ver = nullptr;
+    version *cur = nullptr;
     {
         std::unique_lock<std::mutex> lock{mutex_};
-        mtab = mutab_;
-        imtab = immutab_;
-        ver = versions_.current();
         mutab_->ref();
         if(immutab_!=nullptr){
             immutab_->ref();
         }
-        ver->ref();
+        mtab = mutab_;
+        imtab = immutab_;
+        cur = versions_.current();
+        cur->ref();
     }
 
     {
-        int err = mtab->get(seqno, key, val);
+        int err = mutab_->get(seqno, key, val);
         mtab->unref();
         if(err==0){
             if(imtab!=nullptr){
                 imtab->unref();
             }
-            ver->unref();
+            cur->unref();
             return 0;
         }
     }
 
-    if(immutab_!=nullptr){
-        int err = immutab_->get(seqno, key, val);
-        immutab_->unref();
+    if(imtab!=nullptr){
+        int err = imtab->get(seqno, key, val);
+        imtab->unref();
         if(err==0){
-            ver->unref();
+            cur->unref();
             return 0;
         }
     }
 
     {
-        int err = ver->get(seqno, key, val);
-        ver->unref();
+        int err = cur->get(seqno, key, val);
+        cur->unref();
         schedule_compaction();
         return err;
     }
@@ -181,16 +181,19 @@ int lsmtree::minor_compact(){
 
     fprintf(stderr, "minor compact into sst-%d range:[%s, %s]\n", sst->file_number, sst->smallest.c_str(), sst->largest.c_str());
     edit.add(0, sst);
-
-    versions_.apply_logidx(persist_logidx);
     version *neo = versions_.apply(&edit);
+    versions_.apply_logidx(persist_logidx);
+
+    versions_.appoint(neo);
+    memtable *imtab = immutab_;
+    immutab_ = nullptr;
+
     {
         std::unique_lock<std::mutex> lock{mutex_};
-        immutab_->unref();
-        immutab_ = nullptr;
+        solid_cv_.notify_all();
     }
-    versions_.appoint(neo);
-    solid_cv_.notify_all();
+
+    imtab->unref();
     versions_.current()->calculate();
     return 0;
 }
@@ -257,11 +260,7 @@ int lsmtree::major_compact(compaction* c){
     }
 
     version * neo = versions_.apply(&edit);
-
-    {
-        //std::unique_lock<std::mutex> lock{mutex_};
-        versions_.appoint(neo);
-    }
+    versions_.appoint(neo);
 
     versions_.current()->calculate();
     fprintf(stderr, "major compact DONE!!!\n");
