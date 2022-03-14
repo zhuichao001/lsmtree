@@ -53,6 +53,7 @@ public:
 
 template<class T>
 class skiplist {
+    friend class memtable;
     node<T> *head;
     node<T> *nil;
 
@@ -153,38 +154,6 @@ public:
         }
         head->forwards[0] = nil;
     }
-
-public:
-    class iterator{
-        node<T> *ptr;
-        friend class skiplist;
-    public:
-        node<T> * operator *(){
-            return ptr;
-        }
-
-        iterator & operator ++(){
-            ptr = ptr->next();
-            return *this;
-        }
-
-        bool operator !=(const iterator &other){
-            return ptr!=other.ptr;
-        }
-    };
-
-    iterator begin(){
-        iterator it;
-        it.ptr = head->next();
-        return it;
-    }
-
-    iterator end(){
-        iterator it;
-        it.ptr = nil;
-        return it;
-    }
-
 };
 
 #endif

@@ -13,7 +13,7 @@ class tablecache{
     LRUCache<std::string, cached* > lru;
 public:
     tablecache():
-        lru(512){ //default:512 sstables will be cached at most
+        lru(960){ //default:256 sstables will be cached at most
     }
 
     int insert(const std::string &k, cached* v){
@@ -21,10 +21,7 @@ public:
             fprintf(stderr, "warning, ignore cache %s exist\n", k.c_str());
             return -1;
         }
-        fprintf(stderr, "tablecache::insert, start cache %s\n", k.c_str());
         lru.put(k, v);
-        fprintf(stderr, "tablecache::insert, ok, cacheing %s\n", k.c_str());
-        v->cache();
         return 0;
     }
 

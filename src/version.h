@@ -151,7 +151,7 @@ public:
 
     version *apply(versionedit *edit);
 
-    int persist(const std::vector<basetable*> ssts[MAX_LEVELS]);
+    int persist(version *ver);
 
     int recover();
 };

@@ -5,13 +5,14 @@
 #include <assert.h>
 #include <functional>
 #include <string>
+#include <mutex>
 #include "tablecache.h"
 #include "types.h"
 
 extern std::string basedir;
 
 const int MAX_LEVELS = 8;
-const int SST_LIMIT = 1<<18; //default sst size:256KB
+const int SST_LIMIT = 2<<20; //default sst size:2MB
 const int MAX_ALLOWED_SEEKS = SST_LIMIT / 256;  //max seeks before compaction
 
 class basetable: public cached {
@@ -31,7 +32,10 @@ public:
 
     int key_num;
     int ref_num;
+
+    std::mutex mutex;
     bool incache;
+    bool isclosed;
 
     basetable():
         level(0),
@@ -44,15 +48,12 @@ public:
         largest(""),
         key_num(0),
         ref_num(0),
+        isclosed(true), 
         incache(false){
     }
 
     int remove(){
         return ::remove(path);
-    }
-
-    bool overlap(basetable *other){
-        return overlap(other->smallest, other->largest);
     }
 
     bool overlap(const std::string &start, const std::string &end){
@@ -92,26 +93,43 @@ public:
     }
 
     void cache(){
+        std::unique_lock<std::mutex> lock{mutex};
         if(incache){
             return ;
         }
+        if(!isclosed){
+            fprintf(stderr, "warning: try cache a open sst %s\n", path);
+            return;
+        }
         fprintf(stderr, "CACHEING %s\n", path);
+        if(isclosed){
+            open();
+            isclosed=false;
+        }
         //cache: idxoffset, datoffset, codemap
         load();
         incache = true; 
     }
 
     void uncache(){
+        std::unique_lock<std::mutex> lock{mutex};
         if(!incache){
             return ;
         }
+        if(isclosed){
+            fprintf(stderr, "warning: try uncache a closed sst %s\n", path);
+            return;
+        }
         fprintf(stderr, "UNCACHEING %s\n", path);
         release();
-        this->close();
         incache = false;
+
+        close();
+        isclosed=true;
     }
 
     bool iscached(){
+        std::unique_lock<std::mutex> lock{mutex};
         return incache;
     }
 public:
@@ -139,6 +157,10 @@ public:
     public:
         bool valid(){
             return idxoffset < table->idxoffset;
+        }
+
+        basetable *belong(){
+            return table;
         }
 
         iterator &next(){

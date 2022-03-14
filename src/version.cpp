@@ -37,6 +37,7 @@ int version::get(const uint64_t seqno, const std::string &key, std::string &val)
         primarysst *t = dynamic_cast<primarysst*>(ssts[0][j]);
         t->ref();
         if(!t->iscached()){
+            t->cache();
             vset->cache_.insert(std::string(t->path), t);
         }
 
@@ -71,8 +72,10 @@ int version::get(const uint64_t seqno, const std::string &key, std::string &val)
         if(key<t->smallest || key>t->largest){
             continue;
         }
+
         t->ref();
         if(!t->iscached()){
+            t->cache();
             vset->cache_.insert(std::string(t->path), t);
         }
         int err = t->get(seqno, key, val);
@@ -190,11 +193,10 @@ version *versionset::apply(versionedit *edit){
         }
     }
 
-    this->persist(neo->ssts);
     return neo;
 }
 
-int versionset::persist(const std::vector<basetable*> ssts[MAX_LEVELS]){ 
+int versionset::persist(version *ver){ 
     char metapath[PATH_LEN];
     sprintf(metapath, "%s/meta/\0", basedir.c_str());
     if(!exist(metapath)){
@@ -207,8 +209,8 @@ int versionset::persist(const std::vector<basetable*> ssts[MAX_LEVELS]){
         int fd = open_create(manifest_path);
         fprintf(stderr, "persist MANIFEST: %s\n", manifest_path);
         for(int level=0; level<MAX_LEVELS; ++level) {
-            for(int j=0; j<ssts[level].size(); ++j){
-                basetable *t = ssts[level][j];
+            for(int j=0; j<ver->ssts[level].size(); ++j){
+                basetable *t = ver->ssts[level][j];
                 char line[256];
                 sprintf(line, "%d %d %s %s %d\n", level, t->file_number, t->smallest.c_str(), t->largest.c_str(), t->key_num);
                 write_file(fd, line, strlen(line));
