@@ -67,7 +67,6 @@ int lsmtree::get(const roptions &opt, const std::string &key, std::string &val){
             imtab[i]->ref();
         }
         {
-            std::unique_lock<std::mutex> lock{sstmutex_};
             ver = versions_.current();
             ver->ref();
         }
@@ -114,7 +113,7 @@ void lsmtree::schedule_compaction(){
             if(versions_.need_compact()){
                 compaction *c = nullptr;
                 {
-                    std::unique_lock<std::mutex> lock{mutex_};
+                    std::unique_lock<std::mutex> lock{sstmutex_};
                     c = versions_.plan_compact();
                 }
                 if(c!=nullptr){ //do nothing
@@ -183,6 +182,7 @@ void lsmtree::schedule_flush(){
         for(int i=0; i<tabnum; ++i){
             sem_post(&sem_free_);
         }
+        schedule_compaction();
     }
 }
 
@@ -207,7 +207,6 @@ int lsmtree::minor_compact(const int tabnum){
         vec.pop_back(); //remove iterator
 
         onval *t = it.val();
-
         it.next();
         if(it.valid()){
             vec.push_back(it);
@@ -235,12 +234,11 @@ int lsmtree::minor_compact(const int tabnum){
     {
         std::unique_lock<std::mutex> lock{sstmutex_};
         version *neo = versions_.apply(&edit); 
-        versions_.persist(neo);
         versions_.appoint(neo);
-        versions_.current()->calculate();
     }
-
+    versions_.persist(versions_.current());
     versions_.apply_logidx(persist_logidx);
+    versions_.current()->calculate();
 
     {
         std::unique_lock<std::mutex> lock{mutex_};
@@ -325,10 +323,10 @@ int lsmtree::major_compact(compaction* c){
     {
         std::unique_lock<std::mutex> lock{sstmutex_};
         version * neo = versions_.apply(&edit);
-        versions_.persist(neo);
         versions_.appoint(neo);
-        versions_.current()->calculate();
     }
+    versions_.persist(versions_.current());
+    versions_.current()->calculate();
 
     fprintf(stderr, "major compact DONE!!!\n");
     return 0;

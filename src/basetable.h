@@ -12,7 +12,7 @@
 extern std::string basedir;
 
 const int MAX_LEVELS = 8;
-const int SST_LIMIT = 2<<20; //default sst size:2MB
+const int SST_LIMIT = 1<<18; //default sst size:256KB
 const int MAX_ALLOWED_SEEKS = SST_LIMIT / 256;  //max seeks before compaction
 
 class basetable: public cached {

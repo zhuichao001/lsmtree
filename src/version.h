@@ -104,7 +104,9 @@ class versionset {
     int apply_logidx_;
     
     version verhead_;
+
     version *current_;
+    std::mutex mutex_;
 
     std::string roller_key_[MAX_LEVELS]; //next campact start-key for every level
 public:
@@ -127,16 +129,20 @@ public:
     int add_sequence(int cnt){ last_sequence_ += cnt; return last_sequence_; }
 
     version *current(){ 
+        std::unique_lock<std::mutex> lock{mutex_};
         return current_; 
     }
 
     void appoint(version *ver){
-        if(current_!=nullptr){
-            current_->unref();
-        }
+        {
+            std::unique_lock<std::mutex> lock{mutex_};
+            if(current_!=nullptr){
+                current_->unref();
+            }
 
-        current_ = ver;
-        ver->ref();
+            current_ = ver;
+            ver->ref();
+        }
 
         //append current_ to tail
         ver->next = &verhead_;
@@ -145,7 +151,7 @@ public:
         verhead_.prev = ver;
     }
 
-    bool need_compact(){ return current_->crownd_score>1 || current_->hot_sst!=nullptr; }
+    bool need_compact(){ return current_->crownd_score>1.0 || current_->hot_sst!=nullptr; }
 
     compaction *plan_compact();
 
