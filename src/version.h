@@ -11,6 +11,9 @@
 #include "compaction.h"
 #include "tablecache.h"
 
+
+const int PATH_LEN = 64;
+
 class versionset;
 
 class version {
@@ -27,7 +30,7 @@ class version {
     double crownd_score;
     int crownd_level;
     //compact caused by allowed_seeks become zero
-    basetable *hot_sst;
+    basetable *tricky_sst;
 public:
     version(versionset *vs);
     ~version();
@@ -53,6 +56,8 @@ public:
     }
 
     int get(const uint64_t seqno, const std::string &key, std::string &val);
+
+    void select_sst(const int level, const std::string &start, const std::string &end, std::vector<basetable*> &out);
 
     void calculate();
 
@@ -96,6 +101,7 @@ public:
 
 class versionset {
     std::string dbpath_;
+    char metapath_[PATH_LEN];
     const options *opt_;
 
     int next_fnumber_;
@@ -113,6 +119,16 @@ public:
     tablecache cache_;
 
     versionset();
+
+    void cachein(basetable *t){
+        if(t->cache()){
+            cache_.insert(std::string(t->path), t);
+        }
+    }
+
+    void cacheout(basetable *t){
+        cache_.evict(std::string(t->path));
+    }
 
     void apply_logidx(int idx){ apply_logidx_ = idx; }
 
@@ -133,27 +149,11 @@ public:
         return current_; 
     }
 
-    void appoint(version *ver){
-        {
-            std::unique_lock<std::mutex> lock{mutex_};
-            if(current_!=nullptr){
-                current_->unref();
-            }
+    void appoint(version *ver);
 
-            current_ = ver;
-            ver->ref();
-        }
+    bool need_compact(){ return current_->crownd_score>1.0 || current_->tricky_sst!=nullptr; }
 
-        //append current_ to tail
-        ver->next = &verhead_;
-        ver->prev = verhead_.prev;
-        verhead_.prev->next = ver;
-        verhead_.prev = ver;
-    }
-
-    bool need_compact(){ return current_->crownd_score>1.0 || current_->hot_sst!=nullptr; }
-
-    compaction *plan_compact();
+    compaction *plan_compact(version *ver);
 
     version *apply(versionedit *edit);
 

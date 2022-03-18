@@ -13,7 +13,7 @@ extern std::string basedir;
 
 const int MAX_LEVELS = 8;
 const int SST_LIMIT = 1<<18; //default sst size:256KB
-const int MAX_ALLOWED_SEEKS = SST_LIMIT / 256;  //max seeks before compaction
+const int MAX_ALLOWED_SEEKS = SST_LIMIT / 64;  //max seeks before compaction
 
 class basetable: public cached {
 public:
@@ -62,17 +62,22 @@ public:
         return lower <= upper;
     }
 
+    bool containedby(const std::string &start, const std::string &end){
+        return smallest>=start && largest<=end;
+    }
+
     int ref(){
         return ++ref_num;
     }
 
     int unref(){
         assert(ref_num>=1);
-        if(--ref_num==0){
+        int refcnt = --ref_num;
+        if(refcnt==0){
             fprintf(stderr, "unref destroy level-%d sst-%d <%s,%s>\n", level, file_number, smallest.c_str(), largest.c_str());
             delete this;
         }
-        return ref_num;
+        return refcnt;
     }
 
     int refnum(){
@@ -92,23 +97,24 @@ public:
         }
     }
 
-    void cache(){
+    bool cache(){
         std::unique_lock<std::mutex> lock{mutex};
         if(incache){
-            return ;
+            return false;
         }
         if(!isclosed){
             fprintf(stderr, "warning: try cache a open sst %s\n", path);
-            return;
+            return false;
         }
         fprintf(stderr, "CACHEING %s\n", path);
         if(isclosed){
             open();
-            isclosed=false;
+            isclosed = false;
         }
         //cache: idxoffset, datoffset, codemap
         load();
         incache = true; 
+        return true;
     }
 
     void uncache(){

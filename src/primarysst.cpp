@@ -98,22 +98,21 @@ int primarysst::put(const uint64_t seqno, const std::string &key, const std::str
     memcpy(mem+datoffset+sizeof(int), key.c_str(), keylen);
     memcpy(mem+datoffset+sizeof(int)+keylen, &vallen, sizeof(int));
     memcpy(mem+datoffset+sizeof(int)+keylen+sizeof(int), val.c_str(), vallen);
-    msync(mem+datoffset, datlen, MS_SYNC);
+    msync(mem+datoffset, datlen, MS_SYNC); //TODO: determine by option
 
     const int hashcode = hash(key.c_str(), key.size());
     rowmeta meta = {seqno, hashcode, datoffset, datlen, flag};
-    memcpy(mem+idxoffset, &meta, sizeof(meta));
-    msync(mem+idxoffset, sizeof(meta), MS_SYNC);
-    idxoffset += sizeof(meta);
+    memcpy(mem+idxoffset, &meta, sizeof(rowmeta));
+    msync(mem+idxoffset, sizeof(rowmeta), MS_SYNC); //TODO: determine by option
+    idxoffset += sizeof(rowmeta);
 
     char *ckey = mem+datoffset+sizeof(int);
     char *cval = mem+datoffset+sizeof(int)+keylen+sizeof(int);
-
     kvtuple t(seqno, ckey, cval, flag);
     codemap.insert(std::make_pair(hashcode, t));
 
     ++key_num;
-    const int rowlen = sizeof(int)+keylen+sizeof(int)+vallen + sizeof(meta);
+    const int rowlen = datlen + sizeof(rowmeta);
     file_size += rowlen;
     uplimit(key);
     return 0;
@@ -159,12 +158,8 @@ int primarysst::scan(const uint64_t seqno, std::function<int(const int, const ch
     return 0;
 }
 
-int primarysst::peek(int idxoffset, kvtuple &record) {
-    if(idxoffset & (sizeof(int)*4-1)!=0){
-        return -1;
-    }
-
-    const rowmeta meta = *(rowmeta*)(mem+idxoffset);
+int primarysst::peek(int idxpos, kvtuple &record) {
+    const rowmeta meta = *(rowmeta*)(mem+idxpos);
     if(meta.seqno==0 && meta.hashcode==0){
         return -1;
     }

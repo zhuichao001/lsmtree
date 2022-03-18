@@ -3,7 +3,6 @@
 #include "sstable.h"
 
 
-thread_pool_t backstage(1);
 std::string basedir;
 
 const int TIER_SST_COUNT(int level){
@@ -36,7 +35,10 @@ int lsmtree::redolog(){
     wal_->lastindex(endidx);
     for(int idx=startidx; idx<=endidx; ++idx){
         std::string row;
-        wal_->read(idx, row);
+        if(wal_->read(idx, row)<0){
+            fprintf(stderr, "error: failed when redo log, idx=%d\n", idx);
+            return -1;
+        }
         int seqno=0;
         char kv[2][523];
         int flag=0;
@@ -101,50 +103,6 @@ int lsmtree::get(const roptions &opt, const std::string &key, std::string &val){
     }
 }
 
-void lsmtree::schedule_compaction(){
-    if(compacting_){
-        return;
-    }
-
-    compacting_ = true;
-    backstage.post([this]{
-        {
-            bool compacted = false;
-            if(versions_.need_compact()){
-                compaction *c = nullptr;
-                {
-                    std::unique_lock<std::mutex> lock{sstmutex_};
-                    c = versions_.plan_compact();
-                }
-                if(c!=nullptr){ //do nothing
-                    this->major_compact(c);
-                    compacted = true;
-                }
-            }
-            compacting_ = false;
-            if(compacted){
-                schedule_compaction();
-            }
-        }
-    });
-}
-
-int lsmtree::make_space(){
-    if(mutab_->size() < MAX_MEMTAB_SIZE){
-        return 0;
-    }
-
-    sem_wait(&sem_free_);
-    {
-        std::unique_lock<std::mutex> lock{mutex_};
-        immutab_[imsize_++] = mutab_;
-        mutab_ = new memtable;
-        mutab_->ref();
-    }
-    sem_post(&sem_occu_);
-    return 0;
-}
-
 int lsmtree::put(const woptions &opt, const std::string &key, const std::string &val){
     wbatch wb;
     if(wb.put(key, val)<0){
@@ -159,6 +117,25 @@ int lsmtree::del(const woptions &opt, const std::string &key){
         return -1;
     }
     return write(opt, wb);
+}
+
+int lsmtree::write(const woptions &opt, const wbatch &bat){
+    int seqno = versions_.add_sequence(bat.size());
+    bat.scan([this, seqno](const char *key, const char *val, const int flag)->int{
+        make_space(); //transfer full memtable to immutable
+
+        char log[1024];
+        if(flag==FLAG_VAL){
+            sprintf(log, "%d %s %s %d\n\0", seqno, key, val, flag);
+            wal_->write(++logidx_, log);
+            return mutab_->put(logidx_, seqno, key, val);
+        }else{
+            sprintf(log, "%d %s * %d\n\0", seqno, key, flag);
+            wal_->write(++logidx_, log);
+            return mutab_->del(logidx_, seqno, key);
+        }
+    });
+    return 0;
 }
 
 void lsmtree::schedule_flush(){
@@ -182,8 +159,55 @@ void lsmtree::schedule_flush(){
         for(int i=0; i<tabnum; ++i){
             sem_post(&sem_free_);
         }
+
+        versions_.current()->calculate();
         schedule_compaction();
     }
+}
+
+void lsmtree::schedule_compaction(){
+    if(compacting_){
+        return;
+    }
+
+    compacting_ = true;
+    backstage_.post([this]{
+        {
+            bool compacted = false;
+            if(versions_.need_compact()){
+                compaction *c = nullptr;
+                {
+                    std::unique_lock<std::mutex> lock{sstmutex_};
+                    c = versions_.plan_compact(versions_.current());
+                }
+                if(c!=nullptr){ //do nothing
+                    this->major_compact(c);
+                    compacted = true;
+                }
+            }
+            compacting_ = false;
+            if(compacted){
+                versions_.current()->calculate();
+                schedule_compaction();
+            }
+        }
+    });
+}
+
+int lsmtree::make_space(){
+    if(mutab_->size() < MAX_MEMTAB_SIZE){
+        return 0;
+    }
+
+    sem_wait(&sem_free_);
+    {
+        std::unique_lock<std::mutex> lock{mutex_};
+        immutab_[imsize_++] = mutab_;
+        mutab_ = new memtable;
+        mutab_->ref();
+    }
+    sem_post(&sem_occu_);
+    return 0;
 }
 
 int lsmtree::minor_compact(const int tabnum){
@@ -205,6 +229,10 @@ int lsmtree::minor_compact(const int tabnum){
         memtable::iterator it = vec.front();
         pop_heap(vec.begin(), vec.end(), memtable::compare_gt);
         vec.pop_back(); //remove iterator
+        if(!it.valid()){
+            fprintf(stderr, "error: pop invalid memtable::iterator\n");
+            continue;
+        }
 
         onval *t = it.val();
         it.next();
@@ -213,6 +241,7 @@ int lsmtree::minor_compact(const int tabnum){
             push_heap(vec.begin(), vec.end(), memtable::compare_gt);
         }
 
+        //merge same key
         if(n++>0 && lastkey==t->key && t->seqno<snapshots_.smallest_sn()){
             continue;
         }
@@ -220,25 +249,27 @@ int lsmtree::minor_compact(const int tabnum){
         if(persist_logidx < t->logidx){
             persist_logidx = t->logidx;
         }
-        lastkey = t->key;
         if(sst->put(t->seqno, t->key, t->val, t->flag)==ERROR_SPACE_NOT_ENOUGH){
             edit.add(0, sst);
             fprintf(stderr, "    >>>minor compact into sst-%d range:[%s, %s]\n", sst->file_number, sst->smallest.c_str(), sst->largest.c_str());
+
             sst = new primarysst(versions_.next_fnumber());
             sst->open();
             sst->put(t->seqno, t->key, t->val, t->flag);
         }
+        lastkey = t->key;
     }
-    fprintf(stderr, "    >>>minor compact into sst-%d range:[%s, %s]\n", sst->file_number, sst->smallest.c_str(), sst->largest.c_str());
     edit.add(0, sst);
+    fprintf(stderr, "    >>>minor compact into sst-%d range:[%s, %s]\n", sst->file_number, sst->smallest.c_str(), sst->largest.c_str());
+
     {
         std::unique_lock<std::mutex> lock{sstmutex_};
         version *neo = versions_.apply(&edit); 
         versions_.appoint(neo);
     }
+
     versions_.persist(versions_.current());
     versions_.apply_logidx(persist_logidx);
-    versions_.current()->calculate();
 
     {
         std::unique_lock<std::mutex> lock{mutex_};
@@ -250,24 +281,25 @@ int lsmtree::minor_compact(const int tabnum){
         }
         imsize_ -= tabnum;
     }
+    fprintf(stderr, "MINOR COMPACT DONE!!!\n");
     return 0;
 }
 
 int lsmtree::major_compact(compaction* c){
-    assert(c->inputs_[0].size()>0);
+    assert(c->size()>0);
+
     versionedit edit;
     if(c->size()==1){
         //directly move to next level
-        edit.remove(c->inputs_[0][0]);
-        edit.add(c->level(), c->inputs_[0][0]);
+        edit.remove(c->inputs()[0]);
+        edit.add(c->level(), c->inputs()[0]);
     } else {
         std::vector<basetable::iterator> vec;
-        for(int i=0; i<2; ++i){
-            for(basetable *t : c->inputs_[i]){
-                edit.remove(t);
-                vec.push_back(t->begin());
-                fprintf(stderr, "   ...major compact from input-%d level:%d  sst-%d <%s, %s>\n", i, t->level, t->file_number, t->smallest.c_str(), t->largest.c_str());
-            }
+        for(basetable *t : c->inputs()){
+            versions_.cachein(t);
+            edit.remove(t);
+            vec.push_back(t->begin());
+            fprintf(stderr, "   ...major compact from level:%d  sst-%d <%s, %s>\n", t->level, t->file_number, t->smallest.c_str(), t->largest.c_str());
         }
         if(vec.empty()){
             return 0;
@@ -287,10 +319,7 @@ int lsmtree::major_compact(compaction* c){
             vec.pop_back(); //remove iterator
 
             basetable *t = it.belong();
-            if(!t->iscached()){
-                t->cache();
-                versions_.cache_.insert(std::string(t->path), t);
-            }
+            versions_.cachein(t);
 
             kvtuple e;
             it.parse(e);
@@ -305,8 +334,6 @@ int lsmtree::major_compact(compaction* c){
                 continue;
             }
 
-            lastkey = e.ckey;
-
             if(sst->put(e.seqno, std::string(e.ckey), std::string(e.cval), e.flag)==ERROR_SPACE_NOT_ENOUGH){
                 fprintf(stderr, "    >>>major compact into level:%d sst-%d range:[%s, %s]\n", destlevel, sst->file_number, sst->smallest.c_str(), sst->largest.c_str());
 
@@ -316,38 +343,19 @@ int lsmtree::major_compact(compaction* c){
 
                 sst->put(e.seqno, std::string(e.ckey), std::string(e.cval), e.flag);
             }
+            lastkey = e.ckey;
         }
         fprintf(stderr, "    >>>major compact into level:%d sst-%d range:[%s, %s]\n", destlevel, sst->file_number, sst->smallest.c_str(), sst->largest.c_str());
     }
 
     {
         std::unique_lock<std::mutex> lock{sstmutex_};
-        version * neo = versions_.apply(&edit);
+        version *neo = versions_.apply(&edit);
         versions_.appoint(neo);
     }
+
     versions_.persist(versions_.current());
-    versions_.current()->calculate();
-
-    fprintf(stderr, "major compact DONE!!!\n");
-    return 0;
-}
-
-int lsmtree::write(const woptions &opt, const wbatch &bat){
-    int seqno = versions_.add_sequence(bat.size());
-    bat.scan([this, seqno](const char *key, const char *val, const int flag)->int{
-        make_space(); //transfer full memtable to immutable
-
-        char log[1024];
-        if(flag==FLAG_VAL){
-            sprintf(log, "%d %s %s %d\n\0", seqno, key, val, flag);
-            wal_->write(++logidx_, log);
-            return mutab_->put(logidx_, seqno, key, val);
-        }else{
-            sprintf(log, "%d %s * %d\n\0", seqno, key, flag);
-            wal_->write(++logidx_, log);
-            return mutab_->del(logidx_, seqno, key);
-        }
-    });
+    fprintf(stderr, "MAJOR COMPACT DONE!!!\n");
     return 0;
 }
 

@@ -39,12 +39,15 @@ class lsmtree{
     std::atomic<int> imsize_;
     std::mutex mutex_;
 
+    thread_pool_t backstage_;
+
     std::thread *flusher_;
     sem_t sem_free_;
     sem_t sem_occu_;
 
     std::atomic<bool> running_;
     std::atomic<bool> compacting_;
+
     versionset versions_;
     std::mutex sstmutex_;
 
@@ -64,10 +67,10 @@ public:
         imsize_(0),
         running_(true),
         compacting_(false),
-        flusher_(nullptr){
+        backstage_(1),
+        flusher_(nullptr) {
         mutab_ = new memtable;
         mutab_->ref();
-
         sem_init(&sem_occu_, 0, 0);
         sem_init(&sem_free_, 0, MAX_IMMUTAB_SIZE);
     }

@@ -28,7 +28,7 @@ public:
             const int flag = std::get<2>(rows[i]);
             int err = func(key, val, flag);
             if(err<0){
-                fprintf(stderr, "failed scan writebatch, %s:%s %d\n", key, val, flag);
+                fprintf(stderr, "error: failed scan writebatch, %s:%s %d\n", key, val, flag);
                 return -1;
             }
         }
@@ -44,7 +44,7 @@ public:
             const char *key = std::get<0>(r).c_str();
             const char *val = std::get<1>(r).c_str();
             const int flag = std::get<2>(r);
-            fprintf(stderr, "row= %s:%s %d\n", key, val, flag);
+            fprintf(stderr, "batch item= %s:%s %d\n", key, val, flag);
         }
     }
 

@@ -7,7 +7,7 @@
 #include "types.h"
 #include "skiplist.h"
 
-const int MAX_MEMTAB_SIZE = 1<<20; //1MB
+const int MAX_MEMTAB_SIZE = 2<<20; //1MB
 const int SKIPLIST_MAX_HEIGHT = 10;
 const int BRANCH_SIZE = 16;
 
@@ -58,6 +58,13 @@ public:
 
     int scan(const uint64_t seqno, std::function<int(int /*logidx*/, uint64_t /*seqno*/, const std::string &/*key*/, const std::string &/*val*/, int /*flag*/)> visit);
 
+    void print(int seqno){
+        this->scan(seqno, [seqno](int logidx, uint64_t seq, const std::string &key, const std::string &val, int flag) -> int{
+            fprintf(stderr, "  logidx:%d seq:%d<%d key:%s val:%s flag:%d\n", logidx, seq, seqno, key.c_str(), val.c_str(), flag);
+            return 0;
+        });
+    }
+
 public:
     class iterator{
         skiplist<onval *> *table;
@@ -69,6 +76,7 @@ public:
         }
 
         onval* val(){
+            assert(ptr!=nullptr);
             return ptr->val;
         }
 

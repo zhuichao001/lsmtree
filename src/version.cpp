@@ -2,8 +2,6 @@
 #include "clock.h"
 
 
-const int PATH_LEN = 64;
-
 inline uint64_t max_level_size(int ln){
     return (ln==0)? 8*SST_LIMIT : uint64_t(pow(10,ln))*SST_LIMIT;
 }
@@ -11,15 +9,16 @@ inline uint64_t max_level_size(int ln){
 version::version(versionset *vs):
     vset(vs),
     refnum(0),
-    hot_sst(nullptr){
+    tricky_sst(nullptr){
 }
 
 version::~version(){
     for(int i=0; i<MAX_LEVELS; ++i){
         for(basetable *t : ssts[i]){
             if(t->refnum()==1){
-                vset->cache_.evict(std::string(t->path));
-                t->remove();
+                fprintf(stderr, "REMOVE CACHE AND FILE, sst-%d\n", t->file_number);
+                vset->cacheout(t);
+                t->remove(); //TODO: async
             }
             t->unref();
         }
@@ -30,20 +29,15 @@ int version::get(const uint64_t seqno, const std::string &key, std::string &val)
     kvtuple res;
     res.seqno = 0;
     for(int j=0; j<ssts[0].size(); ++j){
-        if(key<ssts[0][j]->smallest || key>ssts[0][j]->largest){
+        primarysst *t = dynamic_cast<primarysst*>(ssts[0][j]);
+        if(key<t->smallest || key>t->largest){
             continue;
         }
 
-        primarysst *t = dynamic_cast<primarysst*>(ssts[0][j]);
-        t->ref();
-        if(!t->iscached()){
-            t->cache();
-            vset->cache_.insert(std::string(t->path), t);
-        }
+        vset->cachein(t);
 
         kvtuple tmp;
         int err = t->get(seqno, key, tmp);
-        t->unref();
         if(err<0){
             continue;
         }
@@ -68,27 +62,35 @@ int version::get(const uint64_t seqno, const std::string &key, std::string &val)
         if(it==ssts[i].end()){
             continue;
         }
+
         basetable *t = *it;
         if(key<t->smallest || key>t->largest){
             continue;
         }
 
-        t->ref();
-        if(!t->iscached()){
-            t->cache();
-            vset->cache_.insert(std::string(t->path), t);
-        }
+        vset->cachein(t);
+
         int err = t->get(seqno, key, val);
-        t->unref();
         if(err==0 || err==ERROR_KEY_DELETED){
-            t->allowed_seeks -= 1;
             if(t->allowed_seeks==0){
-                hot_sst = t;
+                tricky_sst = t;
             }
             return 0;
+        }else{ //miss seek
+            t->allowed_seeks -= 1;
         }
     }
     return -1;
+}
+
+void version::select_sst(const int level, const std::string &start, const std::string &end, std::vector<basetable*> &out){
+    for (basetable *t : ssts[level]) {
+        if (!t->overlap(start, end)) {
+            continue;
+        }
+        out.push_back(t);
+    }
+    return;
 }
 
 void version::calculate(){
@@ -111,66 +113,75 @@ void version::calculate(){
 versionset::versionset():
     next_fnumber_(10000),
     last_sequence_(1),
+    apply_logidx_(0),
     verhead_(this) {
     verhead_.prev = &verhead_;
     verhead_.next = &verhead_;
     this->appoint(new version(this));
 }
 
-compaction *versionset::plan_compact(){
-    compaction *c;
-    const bool size_too_big = current_->crownd_score >= 1.0;
-    const bool seek_too_many = current_->hot_sst != nullptr;
+void versionset::appoint(version *ver){
+    version *old = current_;
+    ver->ref();
+    //TODO: memory barrier
+    current_ = ver;
+    if(old!=nullptr){
+        old->unref();
+    }
+
+    //append current_ to tail
+    ver->next = &verhead_;
+    ver->prev = verhead_.prev;
+    verhead_.prev->next = ver;
+    verhead_.prev = ver;
+}
+
+compaction *versionset::plan_compact(version *ver){
+    const bool size_too_big = ver->crownd_score >= 1.0;
+    const bool miss_too_many = ver->tricky_sst != nullptr;
+    basetable *focus = nullptr;
+    int level = 0;
     if(size_too_big){
-        int level = current_->crownd_level;
+        level = ver->crownd_level;
         fprintf(stderr, "plan to compact because size too big, level:%d\n", level);
-        c = new compaction(level+1); //compact into next level
-        for(int i=0; i < current_->ssts[level].size(); ++i){
-            basetable *t = current_->ssts[level][i];
-            if(roller_key_[i].empty() || t->smallest > roller_key_[i]){
-                c->inputs_[0].push_back(t);
+        for(basetable *t : ver->ssts[level]){
+            if(roller_key_[level].empty() || t->smallest > roller_key_[level]){
+                focus = t;
                 break;
             }
         }
 
-        if(c->inputs_[0].empty()){ //roll back
-            basetable *t = current_->ssts[level][0];
-            c->inputs_[0].push_back(t);
+        if(focus==nullptr){ //roll back
+            focus = ver->ssts[level][0];
         }
-    }else if(seek_too_many){
-        fprintf(stderr, "plan to compact because seek too many, level:%d\n", current_->hot_sst->level);
-        c = new compaction(current_->hot_sst->level);
-        c->inputs_[0].push_back(current_->hot_sst);
-        current_->hot_sst->allowed_seeks = MAX_ALLOWED_SEEKS;
-        current_->hot_sst = nullptr;
-    }else{
-        return nullptr;
-    }
+        compaction *c = new compaction(ver, focus); //compact into next level
+        roller_key_[level] = focus->largest;
+        return c;
+    }else if(miss_too_many){
+        fprintf(stderr, "plan to compact because seek too many, level:%d\n", current_->tricky_sst->level);
+        focus = ver->tricky_sst;
+        ver->tricky_sst->allowed_seeks = MAX_ALLOWED_SEEKS;
+        ver->tricky_sst = nullptr;
 
-    c->settle_inputs(current_);
-    if(seek_too_many){
-        if(c->inputs_[1].size()==0){
+        compaction *c = new compaction(ver, focus); //compact into next level
+        if(c->size()==1){
             delete c;
             return nullptr;
         }
+        return c;
     }else{
-        for(int i=0; i<2; ++i){ //roll compact_key ahead
-            if(c->inputs_[i].size()>0){
-                basetable *t = c->inputs_[i].back();
-                roller_key_[t->level] = t->largest;
-            }
-        }
+        return nullptr;
     }
-    return c;
 }
 
 version *versionset::apply(versionedit *edit){
+    version *cur = current();
     version *neo = new version(this);
     for(int i=0; i<MAX_LEVELS; ++i){
         std::vector<basetable*> &added = edit->addfiles[i];
         int k = 0;
-        for(int j=0; j<current_->ssts[i].size(); ++j){
-            basetable *t = current_->ssts[i][j];
+        for(int j=0; j<cur->ssts[i].size(); ++j){
+            basetable *t = cur->ssts[i][j];
             if(edit->delfiles.count(t)!=0){
                 continue;
             }
@@ -197,14 +208,8 @@ version *versionset::apply(versionedit *edit){
 }
 
 int versionset::persist(version *ver){ 
-    char metapath[PATH_LEN];
-    sprintf(metapath, "%s/meta/\0", basedir.c_str());
-    if(!exist(metapath)){
-        mkdir(metapath);
-    }
-
     char manifest_path[PATH_LEN];
-    sprintf(manifest_path, "%s/meta/MANIFEST-%ld\0", basedir.c_str(), get_time_usec());
+    sprintf(manifest_path, "%s/MANIFEST-%ld\0", metapath_, get_time_usec());
     {
         int fd = open_create(manifest_path);
         fprintf(stderr, "persist MANIFEST: %s\n", manifest_path);
@@ -235,20 +240,19 @@ int versionset::persist(version *ver){
 }
 
 int versionset::recover(){
-    char metapath[PATH_LEN];
-    sprintf(metapath, "%s/meta/\0", basedir.c_str());
-    if(!exist(metapath)){
-        mkdir(metapath);
-        return 0;
+    sprintf(metapath_, "%s/meta/\0", basedir.c_str());
+    if(!exist(metapath_)){
+        mkdir(metapath_);
+        return -1;
     }
 
-    char current[PATH_LEN];
-    sprintf(current, "%s/CURRENT\0", basedir.c_str());
+    char curpath[PATH_LEN];
+    sprintf(curpath, "%s/CURRENT\0", basedir.c_str());
+
     char manifest_path[PATH_LEN];
     memset(manifest_path, 0, sizeof(manifest_path));
-
     std::string data;
-    if(read_file(current, data)<0){
+    if(read_file(curpath, data)<0){
         return -1;
     }
     sscanf(data.c_str(), "%d %d %s\0", &apply_logidx_, &last_sequence_, manifest_path);
@@ -267,7 +271,6 @@ int versionset::recover(){
         int level=0, fnumber=0, keynum=0;
         char limit[2][64];
         memset(limit, 0, sizeof(limit));
-        fprintf(stderr, "token:[%s]\n", token);
         sscanf(token, "%d %d %s %s %s %d", &level, &fnumber, limit[0], limit[1], &keynum);
         fprintf(stderr, "RECOVER sstable level-%d sst-%d <%s,%s>\n", level, fnumber, limit[0], limit[1]);
 

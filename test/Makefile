@@ -37,7 +37,7 @@ sstable:
 memtable:
 	g++ -g -o run_test_memtable \
 		test_memtable.cpp \
-		../src/skiplist.cpp \
+		../src/memtable.cpp \
 		../../naughty/file/fio.cpp \
 		-I../../naughty/file \
 		-I../../wal \
@@ -112,5 +112,5 @@ major:
 		-std=c++14 \
 		-I../src
 clean:
-	rm -rf run* data/
+	rm -rf run* data/ out
 

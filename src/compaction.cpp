@@ -1,40 +1,32 @@
 #include "compaction.h"
 #include "version.h"
 
-void compaction::settle_inputs(version *ver){
-    assert(level_>=1 && level_<MAX_LEVELS);
-    std::string start = inputs_[0][0]->smallest;
-    std::string end = inputs_[0][0]->largest;
+void compaction::settle(){
+    assert(level_>0 && level_<MAX_LEVELS);
 
-    std::set<basetable *> unique;
-    unique.insert(inputs_[0][0]);
-    const int src_level= inputs_[0][0]->level;
-    const int dest_level = level_;
+    inputs_.push_back(from_);
+    fprintf(stderr, "     |compaction| start:%s, end:%s\n", start_.c_str(), end_.c_str());
 
-    for (int delta=(src_level==dest_level?1:0); ; delta=1-delta) {
-        int level = dest_level-delta;
-        int affected = 0;
-        for (int j=0; j<ver->ssts[level].size(); ++j) {
-            basetable *t = ver->ssts[level][j];
-            if (unique.count(t)!=0) {
-                continue;
-            }
-            if (!t->overlap(start, end)) {
-                continue;
-            }
-            inputs_[delta].push_back(t);
-            unique.insert(t);
-            ++affected;
-
-            if(t->smallest < start){
-                start = t->smallest;
-            }
-            if(t->largest > end){
-                end = t->largest;
-            }
+    //TODO optimize by binary search
+    for (basetable *t : ver_->ssts[level_]) {
+        if (!t->overlap(start_, end_)) {
+            continue;
         }
-        if (affected==0) {
-            break;
+
+        inputs_.push_back(t);
+        fprintf(stderr, "     |compaction| add sst-%d <%s, %s>\n", t->file_number, t->smallest.c_str(), t->largest.c_str());
+
+        if (t->smallest < start_) {
+            start_ = t->smallest;
+        }
+        if (t->largest > end_) {
+            end_ = t->largest;
+        }
+    }
+
+    for (basetable *t : ver_->ssts[level_-1]) {
+        if (t!=inputs_[0] && t->containedby(start_, end_)) {
+            inputs_.push_back(t);
         }
     }
 }
