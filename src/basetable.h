@@ -12,7 +12,7 @@
 extern std::string basedir;
 
 const int MAX_LEVELS = 8;
-const int SST_LIMIT = 1<<18; //default sst size:256KB
+const int SST_LIMIT = 1<<19; //default sst size:512KB
 const int MAX_ALLOWED_SEEKS = SST_LIMIT / 64;  //max seeks before compaction
 
 class basetable: public cached {
@@ -74,7 +74,7 @@ public:
         assert(ref_num>=1);
         int refcnt = --ref_num;
         if(refcnt==0){
-            fprintf(stderr, "unref destroy level-%d sst-%d <%s,%s>\n", level, file_number, smallest.c_str(), largest.c_str());
+            fprintf(stderr, "unref zero destroy level-%d sst-%d <%s,%s>\n", level, file_number, smallest.c_str(), largest.c_str());
             delete this;
         }
         return refcnt;

@@ -24,11 +24,9 @@
 
 typedef std::pair<std::string, std::string> kvpair;
 
-const int TIER_PRI_COUNT = 8;
-const int TIER_SST_COUNT(int level);
 const int MAX_COMPACT_LEVELS = 2; //everytime compact 2 levels at most
 const int MAX_IMMUTAB_SIZE = 8;
-const int MIN_FLUSH_SIZE = 2;
+const int MIN_FLUSH_SIZE = 1;
 
 class lsmtree{
     int logidx_;

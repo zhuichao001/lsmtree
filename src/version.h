@@ -25,6 +25,7 @@ class version {
     int refnum;
     versionset *vset;
     std::vector<basetable*> ssts[MAX_LEVELS];
+    std::mutex mutex_;
 
     //max compaction score and corresponding level
     double crownd_score;
@@ -35,11 +36,15 @@ public:
     version(versionset *vs);
     ~version();
 
-    void ref(){
+    version *ref(){
+        std::unique_lock<std::mutex> lock{mutex_};
+        version *ver = this;
         ++refnum;
+        return ver;
     }
 
     void unref(){
+        std::unique_lock<std::mutex> lock{mutex_};
         assert(refnum>=1);
         if(--refnum==0){
             this->prev->next = this->next;
@@ -60,6 +65,10 @@ public:
     void select_sst(const int level, const std::string &start, const std::string &end, std::vector<basetable*> &out);
 
     void calculate();
+
+    int sst_size(int level){
+        return ssts[level].size();
+    }
 
     void print(){
         for(int i=0; i<MAX_LEVELS; ++i){
@@ -147,6 +156,11 @@ public:
     version *current(){ 
         std::unique_lock<std::mutex> lock{mutex_};
         return current_; 
+    }
+
+    version *curversion(){ 
+        std::unique_lock<std::mutex> lock{mutex_};
+        return current_->ref(); 
     }
 
     void appoint(version *ver);

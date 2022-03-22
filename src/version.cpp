@@ -1,9 +1,9 @@
 #include "version.h"
 #include "clock.h"
 
-
-inline uint64_t max_level_size(int ln){
-    return (ln==0)? 8*SST_LIMIT : uint64_t(pow(10,ln))*SST_LIMIT;
+inline int TIER_SST_COUNT(int level){
+    static const int PRISST_COUNT = 10;
+    return PRISST_COUNT * pow(10, level);
 }
 
 version::version(versionset *vs):
@@ -28,16 +28,22 @@ version::~version(){
 int version::get(const uint64_t seqno, const std::string &key, std::string &val){
     kvtuple res;
     res.seqno = 0;
+
+    long start = get_time_usec();
     for(int j=0; j<ssts[0].size(); ++j){
         primarysst *t = dynamic_cast<primarysst*>(ssts[0][j]);
         if(key<t->smallest || key>t->largest){
             continue;
         }
 
+        long start = get_time_usec();
         vset->cachein(t);
+        fprintf(stderr, "  cachein level-0.%d cost:%d\n", j, get_time_usec()-start);
 
+        start = get_time_usec();
         kvtuple tmp;
         int err = t->get(seqno, key, tmp);
+        fprintf(stderr, "  get level-0.%d cost:%d\n", j, get_time_usec()-start);
         if(err<0){
             continue;
         }
@@ -46,6 +52,8 @@ int version::get(const uint64_t seqno, const std::string &key, std::string &val)
             res = tmp;
         }
     }
+    fprintf(stderr, "  level-0 cost:%d\n", get_time_usec()-start);
+    start = get_time_usec();
 
     if(res.seqno>0){
         if(res.flag==FLAG_VAL){
@@ -68,9 +76,14 @@ int version::get(const uint64_t seqno, const std::string &key, std::string &val)
             continue;
         }
 
+        long start = get_time_usec();
         vset->cachein(t);
+        fprintf(stderr, "  cache level-%d cost:%d\n", i, get_time_usec()-start);
 
+        start = get_time_usec();
         int err = t->get(seqno, key, val);
+        fprintf(stderr, "  get level-%d cost:%d\n", i, get_time_usec()-start);
+
         if(err==0 || err==ERROR_KEY_DELETED){
             if(t->allowed_seeks==0){
                 tricky_sst = t;
@@ -97,11 +110,7 @@ void version::calculate(){
     crownd_score = 0.0;
     crownd_level = -1;
     for(int i=0; i<MAX_LEVELS; ++i){
-        int total = 0;
-        for(int j=0; j<ssts[i].size(); ++j){
-            total += ssts[i][j]->filesize();
-        }
-        const double rate = (double)total/max_level_size(i);
+        const double rate = (double)ssts[i].size()/TIER_SST_COUNT(i);
         if(rate > crownd_score){
             crownd_score = rate;
             crownd_level = i;
@@ -189,7 +198,10 @@ version *versionset::apply(versionedit *edit){
                 if(added[k]->smallest < t->smallest){
                     neo->ssts[i].push_back(added[k]);
                     added[k]->ref();
-                    fprintf(stderr, "apply: add added sst-%d to level:%d [%s, %s]\n", added[k]->file_number, i, added[k]->smallest.c_str(), added[k]->largest.c_str());
+
+                    cachein(added[k]);
+                    fprintf(stderr, "apply: add added sst-%d to level:%d [%s, %s]\n", 
+                            added[k]->file_number, i, added[k]->smallest.c_str(), added[k]->largest.c_str());
                 } else {
                     break;
                 }
@@ -200,7 +212,10 @@ version *versionset::apply(versionedit *edit){
         for(; k<added.size(); ++k){
             neo->ssts[i].push_back(added[k]);
             added[k]->ref();
-            fprintf(stderr, "apply: add added sst-%d to level:%d [%s, %s]\n", added[k]->file_number, i, added[k]->smallest.c_str(), added[k]->largest.c_str());
+
+            cachein(added[k]);
+            fprintf(stderr, "apply: add added sst-%d to level:%d [%s, %s]\n", 
+                    added[k]->file_number, i, added[k]->smallest.c_str(), added[k]->largest.c_str());
         }
     }
 

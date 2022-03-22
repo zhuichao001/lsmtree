@@ -2,7 +2,7 @@
 #include "lsmtree.h"
 #include "clock.h"
 
-const int COUNT = 3000000;
+const int COUNT = 5000000;
 
 void test_w(lsmtree &db){
     woptions wopt;
@@ -12,8 +12,10 @@ void test_w(lsmtree &db){
         sprintf(k, "key_%d", i);
         sprintf(v, "val_%d", i);
 
-        std::cout << " insert " << k << ", hashcode:" << hash(k, strlen(k)) <<std::endl;
+        long start = get_time_usec();
         db.put(wopt, k, v);
+        long cost = get_time_usec() - start;
+        std::cout << "cost:"<<cost <<" insert " << k << ", hashcode:" << hash(k, strlen(k)) <<std::endl;
     }
     std::cout << "======insert done ======"<<std::endl;
 }
@@ -28,11 +30,14 @@ void test_r(lsmtree &db){
         sprintf(v, "val_%d", i);
 
         std::cout << " query " << k << ", hashcode:" << hash(k, strlen(k)) <<std::endl;
+        long start = get_time_usec();
         db.get(ropt, k, val);
+        long end = get_time_usec();
+        long cost = end-start;
         if(std::string(v)==val){
-            std::cerr<< "yes same! key:" <<k <<std::endl;
+            std::cerr << "cost:"<< cost << " yes same! key:" <<k <<std::endl;
         }else{
-            std::cerr<< "not same!" << k << ":" << val << ", expect:" << v << std::endl;
+            std::cerr << "cost:"<< cost << " not same!" << k << ":" << val << ", expect:" << v << std::endl;
         }
         val = "";
     }

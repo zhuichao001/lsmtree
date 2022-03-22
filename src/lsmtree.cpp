@@ -1,13 +1,10 @@
 #include <algorithm>
 #include "lsmtree.h"
 #include "sstable.h"
+#include "clock.h"
 
 
 std::string basedir;
-
-const int TIER_SST_COUNT(int level){
-    return TIER_PRI_COUNT * pow(10, level);
-}
 
 int lsmtree::open(const options *opt, const char *dirpath){
     basedir = dirpath;
@@ -58,7 +55,7 @@ int lsmtree::get(const roptions &opt, const std::string &key, std::string &val){
     memtable *mtab = nullptr;
     memtable *imtab[MAX_IMMUTAB_SIZE];
     int tabnum = 0;
-    version *ver = nullptr;
+
     {
         std::unique_lock<std::mutex> lock{mutex_};
         mtab = mutab_;
@@ -68,37 +65,49 @@ int lsmtree::get(const roptions &opt, const std::string &key, std::string &val){
             imtab[i] = immutab_[i];
             imtab[i]->ref();
         }
-        {
-            ver = versions_.current();
-            ver->ref();
-        }
     }
 
     {
+        long start = get_time_usec();
         int err = mtab->get(seqno, key, val);
         mtab->unref();
         if(err==0){
             for(int i=0; i<tabnum; ++i){
                 imtab[i]->unref();
             }
-            ver->unref();
+            fprintf(stderr, "...get mutab cost:%d\n", get_time_usec()-start);
             return 0;
         }
-    }
-
-    for(int i=0; i<tabnum; ++i){
-        int err = imtab[i]->get(seqno, key, val);
-        imtab[i]->unref();
-        if(err==0){
-            ver->unref();
-            return 0;
-        }
+        fprintf(stderr, "...get mutab cost:%d\n", get_time_usec()-start);
     }
 
     {
+        long start = get_time_usec();
+        int err = -1;
+        for(int i=0; i<tabnum; ++i){
+            if(err<0){
+                err = imtab[i]->get(seqno, key, val);
+            }
+            imtab[i]->unref();
+        }
+        if(err==0){
+            fprintf(stderr, "...get imutab cost:%d\n", get_time_usec()-start);
+            return 0;
+        }
+        fprintf(stderr, "...get imutab cost:%d\n", get_time_usec()-start);
+    }
+
+    {
+        long start = get_time_usec();
+        version *ver = ver = versions_.curversion();
         int err = ver->get(seqno, key, val);
+        long start1 = get_time_usec();
         ver->unref();
+        fprintf(stderr, "...ver unref cost:%d\n", get_time_usec()-start1);
+        long start2 = get_time_usec();
         schedule_compaction();
+        fprintf(stderr, "...schedule_compaction cost:%d\n", get_time_usec()-start2);
+        fprintf(stderr, "...get sst cost:%d\n", get_time_usec()-start);
         return err;
     }
 }
@@ -172,24 +181,22 @@ void lsmtree::schedule_compaction(){
 
     compacting_ = true;
     backstage_.post([this]{
-        {
-            bool compacted = false;
-            if(versions_.need_compact()){
-                compaction *c = nullptr;
-                {
-                    std::unique_lock<std::mutex> lock{sstmutex_};
-                    c = versions_.plan_compact(versions_.current());
-                }
-                if(c!=nullptr){ //do nothing
-                    this->major_compact(c);
-                    compacted = true;
-                }
+        bool compacted = false;
+        if(versions_.need_compact()){
+            compaction *c = nullptr;
+            {
+                std::unique_lock<std::mutex> lock{sstmutex_};
+                c = versions_.plan_compact(versions_.current());
             }
-            compacting_ = false;
-            if(compacted){
-                versions_.current()->calculate();
-                schedule_compaction();
+            if(c!=nullptr){ //do nothing
+                this->major_compact(c);
+                compacted = true;
             }
+        }
+        compacting_ = false;
+        if(compacted){
+            versions_.current()->calculate();
+            schedule_compaction();
         }
     });
 }
