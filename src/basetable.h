@@ -5,6 +5,7 @@
 #include <assert.h>
 #include <functional>
 #include <string>
+#include <mutex>
 #include "tablecache.h"
 #include "types.h"
 
@@ -32,6 +33,8 @@ public:
     int key_num;
     int ref_num;
     bool incache;
+    bool isclosed;
+    std::mutex mutex;
 
     basetable():
         level(0),
@@ -44,7 +47,8 @@ public:
         largest(""),
         key_num(0),
         ref_num(0),
-        incache(false){
+        incache(false),
+        isclosed(true){
     }
 
     int remove(){
@@ -91,27 +95,45 @@ public:
         }
     }
 
-    void cache(){
+    bool cache(){
+        std::unique_lock<std::mutex> lock{mutex};
         if(incache){
-            return ;
+            return false;
+        }
+        if(!isclosed){
+            fprintf(stderr, "warning: try cache a open sst %s\n", path);
+            return false;
         }
         fprintf(stderr, "CACHEING %s\n", path);
+        if(isclosed){
+            open();
+            isclosed = false;
+        }
         //cache: idxoffset, datoffset, codemap
         load();
         incache = true; 
+        return true;
     }
 
     void uncache(){
+        std::unique_lock<std::mutex> lock{mutex};
         if(!incache){
             return ;
         }
+        if(isclosed){
+            fprintf(stderr, "warning: try uncache a closed sst %s\n", path);
+            return;
+        }
         fprintf(stderr, "UNCACHEING %s\n", path);
         release();
-        this->close();
         incache = false;
+
+        close();
+        isclosed=true;
     }
 
     bool iscached(){
+        std::unique_lock<std::mutex> lock{mutex};
         return incache;
     }
 public:

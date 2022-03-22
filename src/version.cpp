@@ -18,8 +18,9 @@ version::~version(){
     for(int i=0; i<MAX_LEVELS; ++i){
         for(basetable *t : ssts[i]){
             if(t->refnum()==1){
-                vset->cache_.evict(std::string(t->path));
-                t->remove();
+                fprintf(stderr, "REMOVE CACHE AND FILE, sst-%d\n", t->file_number);
+                vset->cacheout(t);
+                t->remove(); //TODO: async
             }
             t->unref();
         }

@@ -5,7 +5,7 @@
 
 class cached{
 public:
-    virtual void cache() = 0;
+    virtual bool cache() = 0;
     virtual void uncache() = 0;
 };
 
@@ -13,7 +13,7 @@ class tablecache{
     LRUCache<std::string, cached* > lru;
 public:
     tablecache():
-        lru(512){ //default:512 sstables will be cached at most
+        lru(960){ //default:512 sstables will be cached at most
     }
 
     int insert(const std::string &k, cached* v){

@@ -112,6 +112,17 @@ public:
 
     versionset();
 
+
+    void cachein(basetable *t){
+        if(t->cache()){
+            cache_.insert(std::string(t->path), t);
+        }
+    }
+
+    void cacheout(basetable *t){
+        cache_.evict(std::string(t->path));
+    }
+
     void apply_logidx(int idx){ apply_logidx_ = idx; }
 
     int apply_logidx(){ return apply_logidx_; }
