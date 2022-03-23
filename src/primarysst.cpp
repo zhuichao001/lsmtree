@@ -18,7 +18,12 @@ primarysst::primarysst(const int fileno, const char*start, const char *end, int 
 }
 
 primarysst::~primarysst(){
-    ::munmap(mem, SST_LIMIT);
+    if(isloaded){
+        release();
+    }
+    if(!isclosed){
+        close();
+    }
 }
 
 int primarysst::open(){
@@ -31,7 +36,7 @@ int primarysst::open(){
             return -1;
         }
         ::ftruncate(fd, SST_LIMIT);
-    } else {
+    }else{
         fd = ::open(path, O_RDWR, 0664);
         if(fd<0) {
             fprintf(stderr, "open file %s error: %s\n", path, strerror(errno));
@@ -43,17 +48,26 @@ int primarysst::open(){
         assert(sb.st_size <= SST_LIMIT); 
     }
     mem = (char*)::mmap(nullptr, SST_LIMIT, PROT_READ|PROT_WRITE, MAP_SHARED, fd, 0);
-    if(mem == MAP_FAILED) {
+    if(mem == MAP_FAILED){
        fprintf(stderr, "mmap error: %s\n", strerror(errno));
        ::close(fd);
        return -1;
    }
 
    ::close(fd);
+   isclosed = false;
    return 0;
 }
 
+int primarysst::close(){
+    munmap(mem, SST_LIMIT);
+    mem = nullptr;
+    isclosed = true; 
+    return 0;
+}
+
 int primarysst::load(){
+    isloaded = true; 
     idxoffset = 0;
     datoffset = SST_LIMIT;
     for(int pos=0; pos<SST_LIMIT; pos+=sizeof(rowmeta)){
@@ -76,12 +90,7 @@ int primarysst::release(){
     datoffset = SST_LIMIT;
     std::multimap<int, kvtuple> _;
     _.swap(codemap);
-    return 0;
-}
-
-int primarysst::close(){
-    munmap(mem, SST_LIMIT);
-    mem = nullptr;
+    isloaded = false; 
     return 0;
 }
 
@@ -98,18 +107,19 @@ int primarysst::put(const uint64_t seqno, const std::string &key, const std::str
     memcpy(mem+datoffset+sizeof(int), key.c_str(), keylen);
     memcpy(mem+datoffset+sizeof(int)+keylen, &vallen, sizeof(int));
     memcpy(mem+datoffset+sizeof(int)+keylen+sizeof(int), val.c_str(), vallen);
-    msync(mem+datoffset, datlen, MS_SYNC); //TODO: determine by option
+    //msync(mem+datoffset, datlen, MS_SYNC); //TODO: determine by option
 
     const int hashcode = hash(key.c_str(), key.size());
     rowmeta meta = {seqno, hashcode, datoffset, datlen, flag};
     memcpy(mem+idxoffset, &meta, sizeof(rowmeta));
-    msync(mem+idxoffset, sizeof(rowmeta), MS_SYNC); //TODO: determine by option
+    //msync(mem+idxoffset, sizeof(rowmeta), MS_SYNC); //TODO: determine by option
     idxoffset += sizeof(rowmeta);
 
     char *ckey = mem+datoffset+sizeof(int);
     char *cval = mem+datoffset+sizeof(int)+keylen+sizeof(int);
     kvtuple t(seqno, ckey, cval, flag);
     codemap.insert(std::make_pair(hashcode, t));
+    isloaded = true; 
 
     ++key_num;
     const int rowlen = datlen + sizeof(rowmeta);
@@ -119,6 +129,7 @@ int primarysst::put(const uint64_t seqno, const std::string &key, const std::str
 }
 
 int primarysst::get(const uint64_t seqno, const std::string &key, kvtuple &res){
+    assert(codemap.size()>0);
     const int hashcode = hash(key.c_str(), key.size());
     auto pr = codemap.equal_range(hashcode);
     for (auto iter = pr.first ; iter != pr.second; ++iter){

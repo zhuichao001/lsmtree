@@ -29,21 +29,15 @@ int version::get(const uint64_t seqno, const std::string &key, std::string &val)
     kvtuple res;
     res.seqno = 0;
 
-    long start = get_time_usec();
     for(int j=0; j<ssts[0].size(); ++j){
         primarysst *t = dynamic_cast<primarysst*>(ssts[0][j]);
         if(key<t->smallest || key>t->largest){
             continue;
         }
 
-        long start = get_time_usec();
-        vset->cachein(t);
-        fprintf(stderr, "  cachein level-0.%d cost:%d\n", j, get_time_usec()-start);
-
-        start = get_time_usec();
         kvtuple tmp;
+        vset->cachein(t);
         int err = t->get(seqno, key, tmp);
-        fprintf(stderr, "  get level-0.%d cost:%d\n", j, get_time_usec()-start);
         if(err<0){
             continue;
         }
@@ -52,8 +46,6 @@ int version::get(const uint64_t seqno, const std::string &key, std::string &val)
             res = tmp;
         }
     }
-    fprintf(stderr, "  level-0 cost:%d\n", get_time_usec()-start);
-    start = get_time_usec();
 
     if(res.seqno>0){
         if(res.flag==FLAG_VAL){
@@ -76,29 +68,24 @@ int version::get(const uint64_t seqno, const std::string &key, std::string &val)
             continue;
         }
 
-        long start = get_time_usec();
         vset->cachein(t);
-        fprintf(stderr, "  cache level-%d cost:%d\n", i, get_time_usec()-start);
-
-        start = get_time_usec();
         int err = t->get(seqno, key, val);
-        fprintf(stderr, "  get level-%d cost:%d\n", i, get_time_usec()-start);
-
         if(err==0 || err==ERROR_KEY_DELETED){
-            if(t->allowed_seeks==0){
-                tricky_sst = t;
-            }
             return 0;
         }else{ //miss seek
+	    fprintf(stderr, "missed seek %s in sst-%d\n", key.c_str(), t->file_number);
             t->allowed_seeks -= 1;
+            if(tricky_sst && t->allowed_seeks==0){
+                tricky_sst = t;
+            }
         }
     }
     return -1;
 }
 
 void version::select_sst(const int level, const std::string &start, const std::string &end, std::vector<basetable*> &out){
-    for (basetable *t : ssts[level]) {
-        if (!t->overlap(start, end)) {
+    for(basetable *t : ssts[level]){
+        if(!t->overlap(start, end)){
             continue;
         }
         out.push_back(t);
@@ -198,8 +185,8 @@ version *versionset::apply(versionedit *edit){
                 if(added[k]->smallest < t->smallest){
                     neo->ssts[i].push_back(added[k]);
                     added[k]->ref();
+		    cachein(added[k]);
 
-                    cachein(added[k]);
                     fprintf(stderr, "apply: add added sst-%d to level:%d [%s, %s]\n", 
                             added[k]->file_number, i, added[k]->smallest.c_str(), added[k]->largest.c_str());
                 } else {
@@ -212,13 +199,12 @@ version *versionset::apply(versionedit *edit){
         for(; k<added.size(); ++k){
             neo->ssts[i].push_back(added[k]);
             added[k]->ref();
-
             cachein(added[k]);
+
             fprintf(stderr, "apply: add added sst-%d to level:%d [%s, %s]\n", 
                     added[k]->file_number, i, added[k]->smallest.c_str(), added[k]->largest.c_str());
         }
     }
-
     return neo;
 }
 
@@ -232,7 +218,7 @@ int versionset::persist(version *ver){
             for(int j=0; j<ver->ssts[level].size(); ++j){
                 basetable *t = ver->ssts[level][j];
                 char line[256];
-                sprintf(line, "%d %d %s %s %d\n", level, t->file_number, t->smallest.c_str(), t->largest.c_str(), t->key_num);
+                sprintf(line, "%d %d %s %s %d\n\0", level, t->file_number, t->smallest.c_str(), t->largest.c_str(), t->key_num);
                 write_file(fd, line, strlen(line));
             }
         }

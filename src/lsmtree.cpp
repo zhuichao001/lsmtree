@@ -37,7 +37,7 @@ int lsmtree::redolog(){
             return -1;
         }
         int seqno=0;
-        char kv[2][523];
+        char kv[2][512];
         int flag=0;
         memset(kv, 0, sizeof(kv));
         sscanf(row.c_str(), "%d %s %s %d", &seqno, kv[0], kv[1], &flag);
@@ -68,21 +68,17 @@ int lsmtree::get(const roptions &opt, const std::string &key, std::string &val){
     }
 
     {
-        long start = get_time_usec();
         int err = mtab->get(seqno, key, val);
         mtab->unref();
         if(err==0){
             for(int i=0; i<tabnum; ++i){
                 imtab[i]->unref();
             }
-            fprintf(stderr, "...get mutab cost:%d\n", get_time_usec()-start);
             return 0;
         }
-        fprintf(stderr, "...get mutab cost:%d\n", get_time_usec()-start);
     }
 
     {
-        long start = get_time_usec();
         int err = -1;
         for(int i=0; i<tabnum; ++i){
             if(err<0){
@@ -91,23 +87,15 @@ int lsmtree::get(const roptions &opt, const std::string &key, std::string &val){
             imtab[i]->unref();
         }
         if(err==0){
-            fprintf(stderr, "...get imutab cost:%d\n", get_time_usec()-start);
             return 0;
         }
-        fprintf(stderr, "...get imutab cost:%d\n", get_time_usec()-start);
     }
 
     {
-        long start = get_time_usec();
         version *ver = ver = versions_.curversion();
         int err = ver->get(seqno, key, val);
-        long start1 = get_time_usec();
         ver->unref();
-        fprintf(stderr, "...ver unref cost:%d\n", get_time_usec()-start1);
-        long start2 = get_time_usec();
         schedule_compaction();
-        fprintf(stderr, "...schedule_compaction cost:%d\n", get_time_usec()-start2);
-        fprintf(stderr, "...get sst cost:%d\n", get_time_usec()-start);
         return err;
     }
 }
@@ -159,12 +147,17 @@ void lsmtree::schedule_flush(){
         {
             std::unique_lock<std::mutex> lock{mutex_};
             tabnum = imsize_;
+	    if(tabnum>MAX_FLUSH_SIZE){
+            	tabnum = MAX_FLUSH_SIZE;
+	    }
         }
         if(tabnum<2){
             continue;
         }
 
+	long start = get_time_usec();
         minor_compact(tabnum);
+	fprintf(stderr, "minor cost: %d, flush num:%d\n", get_time_usec()-start, tabnum);
         for(int i=0; i<tabnum; ++i){
             sem_post(&sem_free_);
         }
@@ -189,7 +182,9 @@ void lsmtree::schedule_compaction(){
                 c = versions_.plan_compact(versions_.current());
             }
             if(c!=nullptr){ //do nothing
+		long start = get_time_usec();
                 this->major_compact(c);
+		fprintf(stderr, "major cost: %d\n", get_time_usec()-start);
                 compacted = true;
             }
         }
@@ -218,6 +213,7 @@ int lsmtree::make_space(){
 }
 
 int lsmtree::minor_compact(const int tabnum){
+    assert(tabnum>0);
     std::vector<memtable::iterator> vec;
     for(int i=0; i<tabnum; ++i){
         vec.push_back(immutab_[i]->begin());
@@ -230,6 +226,7 @@ int lsmtree::minor_compact(const int tabnum){
 
     primarysst *sst = new primarysst(versions_.next_fnumber());
     sst->open();
+    edit.add(0, sst);
 
     make_heap(vec.begin(), vec.end(), memtable::compare_gt);
     while(!vec.empty()){
@@ -257,17 +254,20 @@ int lsmtree::minor_compact(const int tabnum){
             persist_logidx = t->logidx;
         }
         if(sst->put(t->seqno, t->key, t->val, t->flag)==ERROR_SPACE_NOT_ENOUGH){
-            edit.add(0, sst);
-            fprintf(stderr, "    >>>minor compact into sst-%d range:[%s, %s]\n", sst->file_number, sst->smallest.c_str(), sst->largest.c_str());
+	    sst->close();
+            fprintf(stderr, "    >>>minor compact into sst-%d range:[%s, %s]\n", 
+			    sst->file_number, sst->smallest.c_str(), sst->largest.c_str());
 
             sst = new primarysst(versions_.next_fnumber());
             sst->open();
+            edit.add(0, sst);
+
             sst->put(t->seqno, t->key, t->val, t->flag);
         }
         lastkey = t->key;
     }
-    edit.add(0, sst);
-    fprintf(stderr, "    >>>minor compact into sst-%d range:[%s, %s]\n", sst->file_number, sst->smallest.c_str(), sst->largest.c_str());
+    fprintf(stderr, "    >>>minor compact into sst-%d range:[%s, %s]\n", 
+		    sst->file_number, sst->smallest.c_str(), sst->largest.c_str());
 
     {
         std::unique_lock<std::mutex> lock{sstmutex_};

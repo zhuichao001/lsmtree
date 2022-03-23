@@ -34,8 +34,9 @@ public:
     int ref_num;
 
     std::mutex mutex;
-    bool incache;
     bool isclosed;
+    bool isloaded;
+    bool incache;
 
     basetable():
         level(0),
@@ -49,6 +50,7 @@ public:
         key_num(0),
         ref_num(0),
         isclosed(true), 
+        isloaded(false), 
         incache(false){
     }
 
@@ -99,39 +101,27 @@ public:
 
     bool cache(){
         std::unique_lock<std::mutex> lock{mutex};
-        if(incache){
-            return false;
-        }
-        if(!isclosed){
-            fprintf(stderr, "warning: try cache a open sst %s\n", path);
-            return false;
-        }
-        fprintf(stderr, "CACHEING %s\n", path);
         if(isclosed){
             open();
-            isclosed = false;
         }
-        //cache: idxoffset, datoffset, codemap
-        load();
-        incache = true; 
+        if(!isloaded){
+            fprintf(stderr, "CACHEING %s\n", path);
+            load(); //cache: idxoffset, datoffset, codemap
+	}
+	incache = true;
         return true;
     }
 
     void uncache(){
         std::unique_lock<std::mutex> lock{mutex};
-        if(!incache){
-            return ;
-        }
-        if(isclosed){
-            fprintf(stderr, "warning: try uncache a closed sst %s\n", path);
-            return;
-        }
-        fprintf(stderr, "UNCACHEING %s\n", path);
-        release();
-        incache = false;
-
-        close();
-        isclosed=true;
+        if(isloaded){
+            fprintf(stderr, "UNCACHEING %s\n", path);
+            release();
+	}
+        if(!isclosed){
+            close();
+	}
+	incache = false;
     }
 
     bool iscached(){

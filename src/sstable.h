@@ -22,6 +22,7 @@ class sstable: public basetable {
     int peek(int idxoffset, kvtuple &record);
 public:
     sstable(const int lev, const int fileno, const char *start=nullptr, const char *end=nullptr, int keys=0);
+    ~sstable();
     int open();
     int close();
     int load();

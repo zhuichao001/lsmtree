@@ -17,6 +17,15 @@ sstable::sstable(const int lev, const int fileno, const char *start, const char 
     key_num = keys;
 }
 
+sstable::~sstable(){
+    if(isloaded){
+        release();
+    }
+    if(!isclosed){
+        close();
+    }
+}
+
 int sstable::open(){
     if(!exist(path)){
         fd = ::open(path, O_RDWR | O_CREAT , 0664);
@@ -25,15 +34,15 @@ int sstable::open(){
             return -1;
         }
         ::ftruncate(fd, SST_LIMIT);
-        return 0;
     } else {
         fd = ::open(path, O_RDWR, 0664);
         if(fd<0) {
             fprintf(stderr, "open file %s error: %s\n", path, strerror(errno));
             return -1;
         }
-        return 0;
     }
+    isclosed = false; 
+    return 0;
 }
 
 int sstable::close(){
@@ -41,6 +50,7 @@ int sstable::close(){
         ::close(fd);
     }
     fd = -1;
+    isclosed = true; 
     return 0;
 }
 
@@ -64,6 +74,7 @@ int sstable::load(){
         codemap.insert(std::make_pair(meta.hashcode, meta));
         datoffset = meta.datoffset;
     }
+    isloaded = true; 
     return 0;
 }
 
@@ -72,12 +83,13 @@ int sstable::release(){
     datoffset = SST_LIMIT;
     std::multimap<int, rowmeta> _;
     _.swap(codemap);
+    isloaded = false; 
     return 0;
 }
 
 int sstable::get(const uint64_t seqno, const std::string &key, std::string &val){
     assert(codemap.size()>0);
-    assert(incache);
+    assert(isloaded);
     const int hashcode = hash(key.c_str(), key.size());
     auto res = codemap.equal_range(hashcode);
     for(auto iter = res.first; iter!=res.second; ++iter){
@@ -129,6 +141,9 @@ int sstable::put(const uint64_t seqno, const std::string &key, const std::string
     rowmeta meta = {seqno, hashcode, datoffset, datlen, flag};
     pwrite(fd, (void*)&meta, sizeof(rowmeta), idxoffset);
     idxoffset += sizeof(rowmeta);
+
+    codemap.insert(std::make_pair(meta.hashcode, meta));
+    isloaded = true;
 
     ++key_num;
     const int rowlen = sizeof(int)+keylen+sizeof(int)+vallen + sizeof(meta);

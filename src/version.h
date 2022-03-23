@@ -130,12 +130,17 @@ public:
     versionset();
 
     void cachein(basetable *t){
-        if(t->cache()){
-            cache_.insert(std::string(t->path), t);
-        }
+	if(t->iscached()){
+            return;
+	}
+        t->cache();
+        cache_.insert(std::string(t->path), t);
     }
 
     void cacheout(basetable *t){
+	if(!t->iscached()){
+            return;
+	}
         cache_.evict(std::string(t->path));
     }
 

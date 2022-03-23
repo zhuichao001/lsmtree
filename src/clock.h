@@ -1,4 +1,5 @@
 #include <time.h>
+#include <sys/time.h>
 #include <string>
 
 
@@ -6,6 +7,18 @@ inline long get_time_sec(){
     struct timespec ts;
     clock_gettime(CLOCK_MONOTONIC, &ts);
     return ts.tv_sec;
+}
+
+inline long get_time_msec(){
+    struct timespec ts;
+    clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &ts);
+    return ts.tv_sec*1000 + ts.tv_nsec/1000000;
+}
+
+inline long get_time_usec(){
+    struct timespec ts;
+    clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &ts);
+    return ts.tv_sec*1000000 + ts.tv_nsec/1000;
 }
 
 inline long get_time_nsec(){
@@ -21,11 +34,7 @@ inline long get_time_nsec(){
         Thread-specific CPU-time clock.
     */
     clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &ts);
-    return ts.tv_nsec;
-}
-
-inline long get_time_usec(){
-    return get_time_sec()*1000+get_time_nsec()/1000;
+    return ts.tv_sec*1000000000 + ts.tv_nsec;
 }
 
 inline std::string timestamp(){
