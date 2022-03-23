@@ -12,8 +12,8 @@
 extern std::string basedir;
 
 const int MAX_LEVELS = 8;
-const int SST_LIMIT = 1<<18; //default sst size:256KB
-const int MAX_ALLOWED_SEEKS = SST_LIMIT / 256;  //max seeks before compaction
+const int SST_LIMIT = 1<<19; //default sst size:512KB
+const int MAX_ALLOWED_SEEKS = SST_LIMIT / 64;  //max seeks before compaction
 
 class basetable: public cached {
 public:
@@ -32,6 +32,7 @@ public:
 
     int key_num;
     int ref_num;
+
     bool incache;
     bool isclosed;
     std::mutex mutex;
@@ -55,14 +56,14 @@ public:
         return ::remove(path);
     }
 
-    bool overlap(basetable *other){
-        return overlap(other->smallest, other->largest);
-    }
-
     bool overlap(const std::string &start, const std::string &end){
         const std::string &lower = smallest > start? smallest: start;
         const std::string &upper = largest < end? largest: end;
         return lower <= upper;
+    }
+
+    bool containedby(const std::string &start, const std::string &end){
+        return smallest>=start && largest<=end;
     }
 
     int ref(){
@@ -71,11 +72,12 @@ public:
 
     int unref(){
         assert(ref_num>=1);
-        if(--ref_num==0){
-            fprintf(stderr, "unref destroy level-%d sst-%d <%s,%s>\n", level, file_number, smallest.c_str(), largest.c_str());
+        int refcnt = --ref_num;
+        if(refcnt==0){
+            fprintf(stderr, "unref zero destroy level-%d sst-%d <%s,%s>\n", level, file_number, smallest.c_str(), largest.c_str());
             delete this;
         }
-        return ref_num;
+        return refcnt;
     }
 
     int refnum(){
@@ -129,7 +131,7 @@ public:
         incache = false;
 
         close();
-        isclosed=true;
+        isclosed = true;
     }
 
     bool iscached(){
@@ -161,6 +163,10 @@ public:
     public:
         bool valid(){
             return idxoffset < table->idxoffset;
+        }
+
+        basetable *belong(){
+            return table;
         }
 
         iterator &next(){

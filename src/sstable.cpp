@@ -53,7 +53,7 @@ int sstable::load(){
     //loop break if meta is {0,0,0,0,0}
     for(int pos=0; ; pos+=sizeof(rowmeta)){
         rowmeta meta;
-        if(pread(fd, (void*)&meta, sizeof(meta), pos) < 0){
+        if(pread(fd, (void*)&meta, sizeof(rowmeta), pos) < 0){
             perror("pread error::");
             return -1;
         }
@@ -131,7 +131,7 @@ int sstable::put(const uint64_t seqno, const std::string &key, const std::string
     idxoffset += sizeof(rowmeta);
 
     ++key_num;
-    const int rowlen = sizeof(int)+keylen+sizeof(int)+vallen + sizeof(meta);
+    const int rowlen = sizeof(int)+keylen+sizeof(int)+vallen + sizeof(rowmeta);
     file_size += rowlen;
     uplimit(key);
     return 0;
@@ -139,8 +139,8 @@ int sstable::put(const uint64_t seqno, const std::string &key, const std::string
 
 int sstable::scan(const uint64_t seqno, std::function<int(const int, const char*, const char*, int)> func){
     rowmeta meta;
-    for(int pos=0; pos<idxoffset; pos+=sizeof(meta)){
-        pread(fd, (void*)&meta, sizeof(meta), pos);
+    for(int pos=0; pos<idxoffset; pos+=sizeof(rowmeta)){
+        pread(fd, (void*)&meta, sizeof(rowmeta), pos);
         if(meta.seqno>seqno){
             continue;
         }
@@ -157,7 +157,8 @@ int sstable::scan(const uint64_t seqno, std::function<int(const int, const char*
 
 int sstable::peek(int idxoffset, kvtuple &record) {
     rowmeta meta;
-    if(pread(fd, &meta, sizeof(meta), idxoffset)<0){
+    if(pread(fd, &meta, sizeof(rowmeta), idxoffset)<0){
+        fprintf(stderr, "peek error, fd:%d, level:%d sst-%d\n", fd, level, file_number);
         perror("sstable::peek idxoffset");
         return -1;
     }
@@ -166,7 +167,6 @@ int sstable::peek(int idxoffset, kvtuple &record) {
         return -1;
     }
 
-    assert(meta.datlen>0);
     record.reserve(meta.datlen);
     if(pread(fd, (void*)record.data(), meta.datlen, meta.datoffset)<0){
         perror("sstable::peek kvtuple");

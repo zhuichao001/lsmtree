@@ -57,7 +57,7 @@ public:
         if(empty()){
             return nullptr;
         }
-        Node<KT,VT> *res = head.prev;;
+        Node<KT,VT> *res = head.prev;
         head.prev->next =  &head;
         head.prev = head.prev->prev;
         res->next = nullptr;
@@ -94,6 +94,7 @@ class LRUCache{
     std::map<KT, Node<KT,VT>*> cache;
     int size;
     const int capacity;
+    std::mutex mutex;
 
 public:
     LRUCache(int cap):
@@ -107,6 +108,7 @@ public:
     }
 
     int get(const KT &key, VT &val){
+        std::unique_lock<std::mutex> lock{mutex};
         auto it = cache.find(key);
         if(it == cache.end()){
             return -1;
@@ -118,18 +120,23 @@ public:
     }
 
     void put(const KT &key, VT &val){
+        std::unique_lock<std::mutex> lock{mutex};
         auto it = cache.find(key);
         if(it != cache.end()){ //update
+            fprintf(stderr, "WARNING, LRU put %s, but has exist\n", key.c_str());
             Node<KT,VT> *node = it->second;
             node->val = val;
             list.update(node);
         }else{ //add
             if(size == capacity){
                 Node<KT,VT> *node = list.pop();
+                assert(node!=nullptr);
+                fprintf(stderr, "LRU IS FULL, pop %s\n", node->key.c_str());
                 cache.erase(node->key);
                 VT v = node->val;
                 v->uncache();
                 delete node;
+                --size;
             }
 
             Node<KT,VT> *node = new Node<KT,VT>(key, val);
@@ -140,14 +147,18 @@ public:
     }
 
     int del(const std::string &key, VT &val){
+        std::unique_lock<std::mutex> lock{mutex};
         auto it = cache.find(key);
         if(it == cache.end()){
             return -1;
         }
         Node<KT,VT> *node = it->second;
         val = node->val;
+        val->uncache();
         cache.erase(key);
         list.remove(node);
+        delete node;
+        --size;
         return 0;
     }
 

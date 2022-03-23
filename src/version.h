@@ -27,7 +27,7 @@ class version {
     double crownd_score;
     int crownd_level;
     //compact caused by allowed_seeks become zero
-    basetable *hot_sst;
+    basetable *tricky_sst;
 public:
     version(versionset *vs);
     ~version();
@@ -141,24 +141,11 @@ public:
         return current_; 
     }
 
-    void appoint(version *ver){
-        if(current_!=nullptr){
-            current_->unref();
-        }
+    void appoint(version *ver);
 
-        current_ = ver;
-        ver->ref();
+    bool need_compact(){ return current_->crownd_score>1 || current_->tricky_sst!=nullptr; }
 
-        //append current_ to tail
-        ver->next = &verhead_;
-        ver->prev = verhead_.prev;
-        verhead_.prev->next = ver;
-        verhead_.prev = ver;
-    }
-
-    bool need_compact(){ return current_->crownd_score>1 || current_->hot_sst!=nullptr; }
-
-    compaction *plan_compact();
+    compaction *plan_compact(version *ver);
 
     version *apply(versionedit *edit);
 

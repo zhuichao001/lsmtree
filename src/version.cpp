@@ -11,7 +11,7 @@ inline uint64_t max_level_size(int ln){
 version::version(versionset *vs):
     vset(vs),
     refnum(0),
-    hot_sst(nullptr){
+    tricky_sst(nullptr){
 }
 
 version::~version(){
@@ -31,19 +31,15 @@ int version::get(const uint64_t seqno, const std::string &key, std::string &val)
     kvtuple res;
     res.seqno = 0;
     for(int j=0; j<ssts[0].size(); ++j){
-        if(key<ssts[0][j]->smallest || key>ssts[0][j]->largest){
+        primarysst *t = dynamic_cast<primarysst*>(ssts[0][j]);
+        if(key<t->smallest || key>t->largest){
             continue;
         }
 
-        primarysst *t = dynamic_cast<primarysst*>(ssts[0][j]);
-        t->ref();
-        if(!t->iscached()){
-            vset->cache_.insert(std::string(t->path), t);
-        }
+        vset->cachein(t);
 
         kvtuple tmp;
         int err = t->get(seqno, key, tmp);
-        t->unref();
         if(err<0){
             continue;
         }
@@ -72,18 +68,16 @@ int version::get(const uint64_t seqno, const std::string &key, std::string &val)
         if(key<t->smallest || key>t->largest){
             continue;
         }
-        t->ref();
-        if(!t->iscached()){
-            vset->cache_.insert(std::string(t->path), t);
-        }
+        vset->cachein(t);
+
         int err = t->get(seqno, key, val);
-        t->unref();
         if(err==0 || err==ERROR_KEY_DELETED){
+            return 0;
+        }else{
             t->allowed_seeks -= 1;
             if(t->allowed_seeks==0){
-                hot_sst = t;
+                tricky_sst = t;
             }
-            return 0;
         }
     }
     return -1;
@@ -115,51 +109,56 @@ versionset::versionset():
     this->appoint(new version(this));
 }
 
-compaction *versionset::plan_compact(){
-    compaction *c;
-    const bool size_too_big = current_->crownd_score >= 1.0;
-    const bool seek_too_many = current_->hot_sst != nullptr;
+void versionset::appoint(version *ver){
+    ver->ref();
+    if(current_!=nullptr){
+        current_->unref();
+    }
+    current_ = ver;
+
+    //append current_ to tail
+    ver->next = &verhead_;
+    ver->prev = verhead_.prev;
+    verhead_.prev->next = ver;
+    verhead_.prev = ver;
+}
+
+compaction *versionset::plan_compact(version *ver){
+    const bool size_too_big = ver->crownd_score >= 1.0;
+    const bool miss_too_many = ver->tricky_sst != nullptr;
+    basetable *focus = nullptr;
+    int level = 0;
     if(size_too_big){
-        int level = current_->crownd_level;
+        level = ver->crownd_level;
         fprintf(stderr, "plan to compact because size too big, level:%d\n", level);
-        c = new compaction(level+1); //compact into next level
-        for(int i=0; i < current_->ssts[level].size(); ++i){
-            basetable *t = current_->ssts[level][i];
-            if(roller_key_[i].empty() || t->smallest > roller_key_[i]){
-                c->inputs_[0].push_back(t);
+        for(basetable *t : ver->ssts[level]){
+            if(roller_key_[level].empty() || t->smallest > roller_key_[level]){
+                focus = t;
                 break;
             }
         }
 
-        if(c->inputs_[0].empty()){ //roll back
-            basetable *t = current_->ssts[level][0];
-            c->inputs_[0].push_back(t);
+        if(focus==nullptr){ //roll back
+            focus = ver->ssts[level][0];
         }
-    }else if(seek_too_many){
-        fprintf(stderr, "plan to compact because seek too many, level:%d\n", current_->hot_sst->level);
-        c = new compaction(current_->hot_sst->level);
-        c->inputs_[0].push_back(current_->hot_sst);
-        current_->hot_sst->allowed_seeks = MAX_ALLOWED_SEEKS;
-        current_->hot_sst = nullptr;
-    }else{
-        return nullptr;
-    }
+        compaction *c = new compaction(ver, focus); //compact into next level
+        roller_key_[level] = focus->largest;
+        return c;
+    }else if(miss_too_many){
+        fprintf(stderr, "plan to compact because seek too many, level:%d\n", current_->tricky_sst->level);
+        focus = ver->tricky_sst;
+        ver->tricky_sst->allowed_seeks = MAX_ALLOWED_SEEKS;
+        ver->tricky_sst = nullptr;
 
-    c->settle_inputs(current_);
-    if(seek_too_many){
-        if(c->inputs_[1].size()==0){
+        compaction *c = new compaction(ver, focus); //compact into next level
+        if(c->size()==1){
             delete c;
             return nullptr;
         }
+        return c;
     }else{
-        for(int i=0; i<2; ++i){ //roll compact_key ahead
-            if(c->inputs_[i].size()>0){
-                basetable *t = c->inputs_[i].back();
-                roller_key_[t->level] = t->largest;
-            }
-        }
+        return nullptr;
     }
-    return c;
 }
 
 version *versionset::apply(versionedit *edit){

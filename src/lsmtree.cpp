@@ -109,7 +109,7 @@ void lsmtree::schedule_compaction(){
                 this->minor_compact();
             }
             if(versions_.need_compact()){
-                compaction *c = versions_.plan_compact();
+                compaction *c = versions_.plan_compact(versions_.current());
                 if(c!=nullptr){ //do nothing
                     this->major_compact(c);
                 }
@@ -163,11 +163,13 @@ int lsmtree::minor_compact(){
     versionedit edit;
     primarysst *sst = new primarysst(versions_.next_fnumber());
     sst->open();
+
     immutab_->scan(versions_.last_sequence(), [=, &edit, &sst, &persist_logidx](const int logidx, const uint64_t seqno, const std::string &key, const std::string &val, int flag) ->int {
         persist_logidx = logidx;
         if(sst->put(seqno, key, val, flag)==ERROR_SPACE_NOT_ENOUGH){
             fprintf(stderr, "minor compact into sst-%d range:[%s, %s]\n", sst->file_number, sst->smallest.c_str(), sst->largest.c_str());
             edit.add(0, sst);
+
             sst = new primarysst(versions_.next_fnumber());
             sst->open();
             sst->put(seqno, key, val, flag);
@@ -193,20 +195,20 @@ int lsmtree::minor_compact(){
 }
 
 int lsmtree::major_compact(compaction* c){
-    assert(c->inputs_[0].size()>0);
+     assert(c->size()>0);
+
     versionedit edit;
     if(c->size()==1){
         //directly move to next level
-        edit.remove(c->inputs_[0][0]);
-        edit.add(c->level(), c->inputs_[0][0]);
+        edit.remove(c->inputs()[0]);
+        edit.add(c->level(), c->inputs()[0]);
     } else {
         std::vector<basetable::iterator> vec;
-        for(int i=0; i<2; ++i){
-            for(basetable *t : c->inputs_[i]){
-                edit.remove(t);
-                vec.push_back(t->begin());
-                fprintf(stderr, "   ...major compact from input-%d level:%d  sst-%d <%s, %s>\n", i, t->level, t->file_number, t->smallest.c_str(), t->largest.c_str());
-            }
+        for(basetable *t : c->inputs()){
+            versions_.cachein(t);
+            edit.remove(t);
+            vec.push_back(t->begin());
+            fprintf(stderr, "   ...major compact from level:%d  sst-%d <%s, %s>\n", t->level, t->file_number, t->smallest.c_str(), t->largest.c_str());
         }
         if(vec.empty()){
             return 0;
@@ -225,8 +227,11 @@ int lsmtree::major_compact(compaction* c){
             pop_heap(vec.begin(), vec.end(), basetable::compare_gt);
             vec.pop_back(); //remove iterator
 
-            kvtuple t;
-            it.parse(t);
+            basetable *t = it.belong();
+            versions_.cachein(t);
+
+            kvtuple e;
+            it.parse(e);
 
             it.next();
             if(it.valid()){
@@ -234,21 +239,20 @@ int lsmtree::major_compact(compaction* c){
                 push_heap(vec.begin(), vec.end(), basetable::compare_gt);
             }
 
-            if(n++>0 && lastkey==t.ckey && t.seqno<snapshots_.smallest_sn()){
+            if(n++>0 && lastkey==e.ckey && e.seqno<snapshots_.smallest_sn()){
                 continue;
             }
 
-            lastkey = t.ckey;
-
-            if(sst->put(t.seqno, std::string(t.ckey), std::string(t.cval), t.flag)==ERROR_SPACE_NOT_ENOUGH){
+            if(sst->put(e.seqno, std::string(e.ckey), std::string(e.cval), e.flag)==ERROR_SPACE_NOT_ENOUGH){
                 fprintf(stderr, "    >>>major compact into level:%d sst-%d range:[%s, %s]\n", destlevel, sst->file_number, sst->smallest.c_str(), sst->largest.c_str());
 
                 sst = new sstable(destlevel, versions_.next_fnumber());
                 sst->open();
                 edit.add(destlevel, sst);
 
-                sst->put(t.seqno, std::string(t.ckey), std::string(t.cval), t.flag);
+                sst->put(e.seqno, std::string(e.ckey), std::string(e.cval), e.flag);
             }
+            lastkey = e.ckey;
         }
         fprintf(stderr, "    >>>major compact into level:%d sst-%d range:[%s, %s]\n", destlevel, sst->file_number, sst->smallest.c_str(), sst->largest.c_str());
     }
