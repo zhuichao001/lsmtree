@@ -98,12 +98,12 @@ int primarysst::put(const uint64_t seqno, const std::string &key, const std::str
     memcpy(mem+datoffset+sizeof(int), key.c_str(), keylen);
     memcpy(mem+datoffset+sizeof(int)+keylen, &vallen, sizeof(int));
     memcpy(mem+datoffset+sizeof(int)+keylen+sizeof(int), val.c_str(), vallen);
-    msync(mem+datoffset, datlen, MS_SYNC); //TODO: determine by option
+    //msync(mem+datoffset, datlen, MS_SYNC); //TODO: determine by option
 
     const int hashcode = hash(key.c_str(), key.size());
     rowmeta meta = {seqno, hashcode, datoffset, datlen, flag};
     memcpy(mem+idxoffset, &meta, sizeof(rowmeta));
-    msync(mem+idxoffset, sizeof(rowmeta), MS_SYNC); //TODO: determine by option
+    //msync(mem+idxoffset, sizeof(rowmeta), MS_SYNC); //TODO: determine by option
     idxoffset += sizeof(rowmeta);
 
     char *ckey = mem+datoffset+sizeof(int);
