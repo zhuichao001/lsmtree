@@ -35,8 +35,6 @@ int version::get(const uint64_t seqno, const std::string &key, std::string &val)
             continue;
         }
 
-        fprintf(stderr, "try find %s in sst-%d, codemap.size:%d\n", key.c_str(), t->file_number, t->codemap.size());
-
         kvtuple tmp;
         if(!t->iscached()){
             vset->cachein(t, false);
@@ -233,7 +231,7 @@ int versionset::persist(version *ver){
                 char line[128+t->smallest.size()+t->largest.size()];
                 memset(line, 0, sizeof(line));
                 //t->printinfo();
-                sprintf(line, "%d %d %s %s %d\n\0", level, t->file_number, t->smallest.c_str(), t->largest.c_str(), t->key_num);
+                sprintf(line, "%d %d %s %s %d\n\0", level, t->file_number, t->smallest.c_str(), t->largest.c_str(), t->keynum);
                 write_file(fd, line, strlen(line));
             }
         }

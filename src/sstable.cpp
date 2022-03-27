@@ -14,7 +14,7 @@ sstable::sstable(const int lev, const int fileno, const char *start, const char 
     if(end!=nullptr){
         largest = end;
     }
-    key_num = keys;
+    keynum = keys;
 }
 
 sstable::~sstable(){
@@ -58,7 +58,7 @@ int sstable::load(){
     if(fd<0){
         open();
     }
-    key_num = 0;
+    keynum = 0;
     idxoffset = 0;
     datoffset = SST_LIMIT;
     //loop break if meta is {0,0,0,0,0}
@@ -72,7 +72,7 @@ int sstable::load(){
         if(meta.hashcode==0 && meta.datoffset==0){
             break;
         }
-	++key_num;
+	++keynum;
         codemap.insert(std::make_pair(meta.hashcode, meta));
         datoffset = meta.datoffset;
     }
@@ -81,7 +81,7 @@ int sstable::load(){
 }
 
 int sstable::release(){
-    key_num = 0;
+    keynum = 0;
     idxoffset = 0;
     datoffset = SST_LIMIT;
     std::multimap<int, rowmeta> _;
@@ -148,7 +148,7 @@ int sstable::put(const uint64_t seqno, const std::string &key, const std::string
     codemap.insert(std::make_pair(meta.hashcode, meta));
     isloaded = true;
 
-    ++key_num;
+    ++keynum;
     const int rowlen = sizeof(int)+keylen+sizeof(int)+vallen + sizeof(meta);
     file_size += rowlen;
     uplimit(key);

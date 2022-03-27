@@ -14,7 +14,7 @@ primarysst::primarysst(const int fileno, const char*start, const char *end, int 
     if(end!=nullptr){
         largest = end;
     }
-    key_num = keys;
+    keynum = keys;
 }
 
 primarysst::~primarysst(){
@@ -67,7 +67,7 @@ int primarysst::close(){
 }
 
 int primarysst::load(){
-    key_num = 0;
+    keynum = 0;
     idxoffset = 0;
     datoffset = SST_LIMIT;
     for(int pos=0; pos<SST_LIMIT; pos+=sizeof(rowmeta)){
@@ -76,7 +76,7 @@ int primarysst::load(){
         if(meta.hashcode==0 && meta.datoffset==0){
             break;
         }
-	++key_num;
+        ++keynum;
         datoffset = meta.datoffset;
         char *ckey, *cval;
         loadkv(mem+datoffset, &ckey, &cval);
@@ -88,7 +88,7 @@ int primarysst::load(){
 }
 
 int primarysst::release(){
-    key_num = 0;
+    keynum = 0;
     idxoffset = 0;
     datoffset = SST_LIMIT;
     std::multimap<int, kvtuple> _;
@@ -124,7 +124,7 @@ int primarysst::put(const uint64_t seqno, const std::string &key, const std::str
     codemap.insert(std::make_pair(hashcode, t));
     isloaded = true; 
 
-    ++key_num;
+    ++keynum;
     const int rowlen = datlen + sizeof(rowmeta);
     file_size += rowlen;
     uplimit(key);

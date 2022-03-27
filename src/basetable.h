@@ -30,7 +30,7 @@ public:
     std::string smallest;
     std::string largest;
 
-    int key_num;
+    int keynum;
     int ref_num;
 
     std::mutex mutex;
@@ -47,7 +47,7 @@ public:
         allowed_seeks(MAX_ALLOWED_SEEKS),
         smallest(64, '\xff'),
         largest(""),
-        key_num(0),
+        keynum(0),
         ref_num(0),
         isclosed(true), 
         isloaded(false),
@@ -130,7 +130,7 @@ public:
     }
 
     void printinfo(){
-        fprintf(stderr, "%d %d %s %s %d\n", level, file_number, smallest.c_str(), largest.c_str(), key_num);
+        fprintf(stderr, "%d %d %s %s %d\n", level, file_number, smallest.c_str(), largest.c_str(), keynum);
     }
 
 public:
