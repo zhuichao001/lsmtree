@@ -50,8 +50,8 @@ public:
         key_num(0),
         ref_num(0),
         isclosed(true), 
-        isloaded(false), 
-        incache(false){
+        isloaded(false),
+       	incache(false) {
     }
 
     int remove(){
@@ -105,7 +105,7 @@ public:
             open();
         }
         if(!isloaded){
-            fprintf(stderr, "CACHEING %s\n", path);
+            fprintf(stderr, "LOAD IN CACHE %s\n", path);
             load(); //cache: idxoffset, datoffset, codemap
 	}
 	incache = true;
@@ -128,6 +128,11 @@ public:
         std::unique_lock<std::mutex> lock{mutex};
         return incache;
     }
+
+    void printinfo(){
+        fprintf(stderr, "%d %d %s %s %d\n", level, file_number, smallest.c_str(), largest.c_str(), key_num);
+    }
+
 public:
     virtual int open() = 0;
     virtual int close() = 0;

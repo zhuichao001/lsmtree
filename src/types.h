@@ -28,19 +28,27 @@ public:
     int flag;
 
     kvtuple():
+        buffer(nullptr),
         seqno(0),
         ckey(nullptr),
         cval(nullptr),
-        flag(0),
-        buffer(nullptr){
+        flag(0) {
     }
 
     kvtuple(uint64_t seq, char *k, char *v, int f):
+        buffer(nullptr),
         seqno(seq),
         ckey(k),
         cval(v),
-        flag(f),
-        buffer(nullptr) {
+        flag(f) {
+    }
+
+    kvtuple(const kvtuple &kt){
+	buffer = kt.buffer;
+	seqno = kt.seqno;
+	ckey = kt.ckey;
+	cval = kt.cval;
+	flag = kt.flag;
     }
 
     void reserve(const int size){

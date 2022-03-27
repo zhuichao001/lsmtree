@@ -129,18 +129,21 @@ public:
 
     versionset();
 
-    void cachein(basetable *t){
-	if(t->iscached()){
+    void cachein(basetable *t, bool fixed=false){
+        if(t->iscached()){
+            cache_.setfixed(std::string(t->path), fixed);
             return;
-	}
+        }
         t->cache();
-        cache_.insert(std::string(t->path), t);
+        cache_.insert(std::string(t->path), t, fixed);
     }
 
     void cacheout(basetable *t){
-	if(!t->iscached()){
+        if(!t->iscached()){
+            fprintf(stderr, "warning, cacheout sst-%d but isn't in cache\n", t->file_number);
             return;
-	}
+        }
+        //TODO uncache here
         cache_.evict(std::string(t->path));
     }
 

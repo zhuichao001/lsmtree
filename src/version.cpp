@@ -35,10 +35,15 @@ int version::get(const uint64_t seqno, const std::string &key, std::string &val)
             continue;
         }
 
+	fprintf(stderr, "try find %s in sst-%d, codemap.size:%d\n", key.c_str(), t->file_number, t->codemap.size());
+
         kvtuple tmp;
-        vset->cachein(t);
+	if(!t->iscached()){
+            vset->cachein(t, false);
+        }
         int err = t->get(seqno, key, tmp);
         if(err<0){
+		fprintf(stderr, "err:%d, try find %s in sst-%d\n", err, key.c_str(), t->file_number);
             continue;
         }
 
@@ -68,7 +73,9 @@ int version::get(const uint64_t seqno, const std::string &key, std::string &val)
             continue;
         }
 
-        vset->cachein(t);
+	if(!t->iscached()){
+            vset->cachein(t, false);
+        }
         int err = t->get(seqno, key, val);
         if(err==0 || err==ERROR_KEY_DELETED){
             return 0;
@@ -110,7 +117,8 @@ versionset::versionset():
     next_fnumber_(10000),
     last_sequence_(1),
     apply_logidx_(0),
-    verhead_(this) {
+    verhead_(this),
+    current_(nullptr){
     verhead_.prev = &verhead_;
     verhead_.next = &verhead_;
     this->appoint(new version(this));
@@ -185,7 +193,9 @@ version *versionset::apply(versionedit *edit){
                 if(added[k]->smallest < t->smallest){
                     neo->ssts[i].push_back(added[k]);
                     added[k]->ref();
-		    cachein(added[k]);
+		    if(!added[k]->iscached()){
+		        cachein(added[k], false);
+		    }
 
                     fprintf(stderr, "apply: add added sst-%d to level:%d [%s, %s]\n", 
                             added[k]->file_number, i, added[k]->smallest.c_str(), added[k]->largest.c_str());
@@ -199,7 +209,9 @@ version *versionset::apply(versionedit *edit){
         for(; k<added.size(); ++k){
             neo->ssts[i].push_back(added[k]);
             added[k]->ref();
-            cachein(added[k]);
+	    if(!added[k]->iscached()){
+	        cachein(added[k], false);
+	    }
 
             fprintf(stderr, "apply: add added sst-%d to level:%d [%s, %s]\n", 
                     added[k]->file_number, i, added[k]->smallest.c_str(), added[k]->largest.c_str());
@@ -210,6 +222,7 @@ version *versionset::apply(versionedit *edit){
 
 int versionset::persist(version *ver){ 
     char manifest_path[PATH_LEN];
+    memset(manifest_path, 0, sizeof(manifest_path));
     sprintf(manifest_path, "%s/MANIFEST-%ld\0", metapath_, get_time_usec());
     {
         int fd = open_create(manifest_path);
@@ -217,7 +230,9 @@ int versionset::persist(version *ver){
         for(int level=0; level<MAX_LEVELS; ++level) {
             for(int j=0; j<ver->ssts[level].size(); ++j){
                 basetable *t = ver->ssts[level][j];
-                char line[256];
+                char line[512];
+		memset(line, 0, sizeof(line));
+		t->printinfo();
                 sprintf(line, "%d %d %s %s %d\n\0", level, t->file_number, t->smallest.c_str(), t->largest.c_str(), t->key_num);
                 write_file(fd, line, strlen(line));
             }
@@ -226,12 +241,15 @@ int versionset::persist(version *ver){
     }
 
     char temporary[PATH_LEN];
+    memset(temporary, 0, sizeof(temporary));
     sprintf(temporary, "%s/.temporary\0", basedir.c_str());
 
     char data[256];
+    memset(data, 0, sizeof(data));
     sprintf(data, "%d %d %s\0", apply_logidx_, last_sequence_, manifest_path);
     write_file(temporary, data, strlen(data)); 
     char current[PATH_LEN];
+    memset(current, 0, sizeof(current));
     sprintf(current, "%s/CURRENT\0", basedir.c_str());
     fprintf(stderr, "MOVE MANIFEST from %s to %s\n", temporary, current);
     if(rename_file(temporary, current)<0){

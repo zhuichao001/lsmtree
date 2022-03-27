@@ -254,7 +254,6 @@ int lsmtree::minor_compact(const int tabnum){
             persist_logidx = t->logidx;
         }
         if(sst->put(t->seqno, t->key, t->val, t->flag)==ERROR_SPACE_NOT_ENOUGH){
-	    sst->close();
             fprintf(stderr, "    >>>minor compact into sst-%d range:[%s, %s]\n", 
 			    sst->file_number, sst->smallest.c_str(), sst->largest.c_str());
 
@@ -273,10 +272,9 @@ int lsmtree::minor_compact(const int tabnum){
         std::unique_lock<std::mutex> lock{sstmutex_};
         version *neo = versions_.apply(&edit); 
         versions_.appoint(neo);
+        versions_.persist(versions_.current());
+        versions_.apply_logidx(persist_logidx);
     }
-
-    versions_.persist(versions_.current());
-    versions_.apply_logidx(persist_logidx);
 
     {
         std::unique_lock<std::mutex> lock{mutex_};
@@ -303,10 +301,12 @@ int lsmtree::major_compact(compaction* c){
     } else {
         std::vector<basetable::iterator> vec;
         for(basetable *t : c->inputs()){
-            versions_.cachein(t);
-            edit.remove(t);
-            vec.push_back(t->begin());
-            fprintf(stderr, "   ...major compact from level:%d  sst-%d <%s, %s>\n", t->level, t->file_number, t->smallest.c_str(), t->largest.c_str());
+		    fprintf(stderr, "cache sst-%d for major_compact\n", t->file_number);
+            versions_.cachein(t, true);
+        edit.remove(t);
+        vec.push_back(t->begin());
+        fprintf(stderr, "   ...major compact from level:%d  sst-%d <%s, %s>\n", 
+                t->level, t->file_number, t->smallest.c_str(), t->largest.c_str());
         }
         if(vec.empty()){
             return 0;
@@ -324,9 +324,6 @@ int lsmtree::major_compact(compaction* c){
             basetable::iterator it = vec.front();
             pop_heap(vec.begin(), vec.end(), basetable::compare_gt);
             vec.pop_back(); //remove iterator
-
-            basetable *t = it.belong();
-            versions_.cachein(t);
 
             kvtuple e;
             it.parse(e);
@@ -359,9 +356,9 @@ int lsmtree::major_compact(compaction* c){
         std::unique_lock<std::mutex> lock{sstmutex_};
         version *neo = versions_.apply(&edit);
         versions_.appoint(neo);
+        versions_.persist(versions_.current());
     }
 
-    versions_.persist(versions_.current());
     fprintf(stderr, "MAJOR COMPACT DONE!!!\n");
     return 0;
 }

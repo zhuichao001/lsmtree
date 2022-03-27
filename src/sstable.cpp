@@ -58,6 +58,7 @@ int sstable::load(){
     if(fd<0){
         open();
     }
+    key_num = 0;
     idxoffset = 0;
     datoffset = SST_LIMIT;
     //loop break if meta is {0,0,0,0,0}
@@ -71,6 +72,7 @@ int sstable::load(){
         if(meta.hashcode==0 && meta.datoffset==0){
             break;
         }
+	++key_num;
         codemap.insert(std::make_pair(meta.hashcode, meta));
         datoffset = meta.datoffset;
     }
@@ -79,6 +81,7 @@ int sstable::load(){
 }
 
 int sstable::release(){
+    key_num = 0;
     idxoffset = 0;
     datoffset = SST_LIMIT;
     std::multimap<int, rowmeta> _;
@@ -173,6 +176,7 @@ int sstable::scan(const uint64_t seqno, std::function<int(const int, const char*
 int sstable::peek(int idxoffset, kvtuple &record) {
     rowmeta meta;
     if(pread(fd, &meta, sizeof(meta), idxoffset)<0){
+        fprintf(stderr, "error pread in sstable::peek, sst-%d\n", file_number);
         perror("sstable::peek idxoffset");
         return -1;
     }

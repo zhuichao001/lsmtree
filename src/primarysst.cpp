@@ -67,7 +67,7 @@ int primarysst::close(){
 }
 
 int primarysst::load(){
-    isloaded = true; 
+    key_num = 0;
     idxoffset = 0;
     datoffset = SST_LIMIT;
     for(int pos=0; pos<SST_LIMIT; pos+=sizeof(rowmeta)){
@@ -76,16 +76,19 @@ int primarysst::load(){
         if(meta.hashcode==0 && meta.datoffset==0){
             break;
         }
+	++key_num;
         datoffset = meta.datoffset;
         char *ckey, *cval;
         loadkv(mem+datoffset, &ckey, &cval);
         kvtuple t(meta.seqno, ckey, cval, meta.flag);
         codemap.insert(std::make_pair(meta.hashcode, t));
     }
+    isloaded = true; 
     return 0;
 }
 
 int primarysst::release(){
+    key_num = 0;
     idxoffset = 0;
     datoffset = SST_LIMIT;
     std::multimap<int, kvtuple> _;
@@ -131,6 +134,7 @@ int primarysst::put(const uint64_t seqno, const std::string &key, const std::str
 int primarysst::get(const uint64_t seqno, const std::string &key, kvtuple &res){
     assert(codemap.size()>0);
     const int hashcode = hash(key.c_str(), key.size());
+
     auto pr = codemap.equal_range(hashcode);
     for (auto iter = pr.first ; iter != pr.second; ++iter){
         const kvtuple &t = iter->second;
