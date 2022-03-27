@@ -14,7 +14,16 @@ sstable::sstable(const int lev, const int fileno, const char *start, const char 
     if(end!=nullptr){
         largest = end;
     }
-    key_num = keys;
+    keynum = keys;
+}
+
+sstable::~sstable(){
+    if(isloaded){
+        release();
+    }
+    if(!isclosed){
+        close();
+    }
 }
 
 int sstable::open(){
@@ -25,15 +34,15 @@ int sstable::open(){
             return -1;
         }
         ::ftruncate(fd, SST_LIMIT);
-        return 0;
     } else {
         fd = ::open(path, O_RDWR, 0664);
         if(fd<0) {
             fprintf(stderr, "open file %s error: %s\n", path, strerror(errno));
             return -1;
         }
-        return 0;
     }
+    isclosed = false; 
+    return 0;
 }
 
 int sstable::close(){
@@ -41,6 +50,7 @@ int sstable::close(){
         ::close(fd);
     }
     fd = -1;
+    isclosed = true; 
     return 0;
 }
 
@@ -48,12 +58,13 @@ int sstable::load(){
     if(fd<0){
         open();
     }
+    keynum = 0;
     idxoffset = 0;
     datoffset = SST_LIMIT;
     //loop break if meta is {0,0,0,0,0}
     for(int pos=0; ; pos+=sizeof(rowmeta)){
         rowmeta meta;
-        if(pread(fd, (void*)&meta, sizeof(rowmeta), pos) < 0){
+        if(pread(fd, (void*)&meta, sizeof(meta), pos) < 0){
             perror("pread error::");
             return -1;
         }
@@ -61,23 +72,27 @@ int sstable::load(){
         if(meta.hashcode==0 && meta.datoffset==0){
             break;
         }
+	++keynum;
         codemap.insert(std::make_pair(meta.hashcode, meta));
         datoffset = meta.datoffset;
     }
+    isloaded = true; 
     return 0;
 }
 
 int sstable::release(){
+    keynum = 0;
     idxoffset = 0;
     datoffset = SST_LIMIT;
     std::multimap<int, rowmeta> _;
     _.swap(codemap);
+    isloaded = false; 
     return 0;
 }
 
 int sstable::get(const uint64_t seqno, const std::string &key, std::string &val){
     assert(codemap.size()>0);
-    assert(incache);
+    assert(isloaded);
     const int hashcode = hash(key.c_str(), key.size());
     auto res = codemap.equal_range(hashcode);
     for(auto iter = res.first; iter!=res.second; ++iter){
@@ -130,8 +145,11 @@ int sstable::put(const uint64_t seqno, const std::string &key, const std::string
     pwrite(fd, (void*)&meta, sizeof(rowmeta), idxoffset);
     idxoffset += sizeof(rowmeta);
 
-    ++key_num;
-    const int rowlen = sizeof(int)+keylen+sizeof(int)+vallen + sizeof(rowmeta);
+    codemap.insert(std::make_pair(meta.hashcode, meta));
+    isloaded = true;
+
+    ++keynum;
+    const int rowlen = sizeof(int)+keylen+sizeof(int)+vallen + sizeof(meta);
     file_size += rowlen;
     uplimit(key);
     return 0;
@@ -167,6 +185,7 @@ int sstable::peek(int idxoffset, kvtuple &record) {
         return -1;
     }
 
+    assert(meta.datlen>0);
     record.reserve(meta.datlen);
     if(pread(fd, (void*)record.data(), meta.datlen, meta.datoffset)<0){
         perror("sstable::peek kvtuple");

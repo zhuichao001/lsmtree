@@ -96,6 +96,8 @@ public:
 
 class versionset {
     std::string dbpath_;
+    static const int PATH_LEN = 64;
+    char metapath_[PATH_LEN];
     const options *opt_;
 
     int next_fnumber_;
@@ -104,6 +106,7 @@ class versionset {
     int apply_logidx_;
     
     version verhead_;
+
     version *current_;
 
     std::string roller_key_[MAX_LEVELS]; //next campact start-key for every level
@@ -112,14 +115,21 @@ public:
 
     versionset();
 
-
-    void cachein(basetable *t){
-        if(t->cache()){
-            cache_.insert(std::string(t->path), t);
+    void cachein(basetable *t, bool fixed=false){
+        if(t->iscached()){
+            cache_.setfixed(std::string(t->path), fixed);
+            return;
         }
+        t->cache();
+        cache_.insert(std::string(t->path), t, fixed);
     }
 
     void cacheout(basetable *t){
+        if(!t->iscached()){
+            fprintf(stderr, "warning, cacheout sst-%d but isn't in cache\n", t->file_number);
+            return;
+        }
+        //TODO uncache here
         cache_.evict(std::string(t->path));
     }
 
@@ -143,7 +153,7 @@ public:
 
     void appoint(version *ver);
 
-    bool need_compact(){ return current_->crownd_score>1 || current_->tricky_sst!=nullptr; }
+    bool need_compact(){ return current_->crownd_score>1.0 || current_->tricky_sst!=nullptr; }
 
     compaction *plan_compact(version *ver);
 

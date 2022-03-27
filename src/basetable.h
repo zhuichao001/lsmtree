@@ -30,12 +30,13 @@ public:
     std::string smallest;
     std::string largest;
 
-    int key_num;
+    int keynum;
     int ref_num;
 
-    bool incache;
-    bool isclosed;
     std::mutex mutex;
+    bool isclosed;
+    bool isloaded;
+    bool incache;
 
     basetable():
         level(0),
@@ -46,10 +47,11 @@ public:
         allowed_seeks(MAX_ALLOWED_SEEKS),
         smallest(64, '\xff'),
         largest(""),
-        key_num(0),
+        keynum(0),
         ref_num(0),
-        incache(false),
-        isclosed(true){
+        isclosed(true), 
+        isloaded(false),
+               incache(false) {
     }
 
     int remove(){
@@ -99,45 +101,38 @@ public:
 
     bool cache(){
         std::unique_lock<std::mutex> lock{mutex};
-        if(incache){
-            return false;
-        }
-        if(!isclosed){
-            fprintf(stderr, "warning: try cache a open sst %s\n", path);
-            return false;
-        }
-        fprintf(stderr, "CACHEING %s\n", path);
         if(isclosed){
             open();
-            isclosed = false;
         }
-        //cache: idxoffset, datoffset, codemap
-        load();
-        incache = true; 
+        if(!isloaded){
+            fprintf(stderr, "LOAD IN CACHE %s\n", path);
+            load(); //cache: idxoffset, datoffset, codemap
+        }
+        incache = true;
         return true;
     }
 
     void uncache(){
         std::unique_lock<std::mutex> lock{mutex};
-        if(!incache){
-            return ;
+        if(isloaded){
+            fprintf(stderr, "UNCACHEING %s\n", path);
+            release();
         }
-        if(isclosed){
-            fprintf(stderr, "warning: try uncache a closed sst %s\n", path);
-            return;
+        if(!isclosed){
+            close();
         }
-        fprintf(stderr, "UNCACHEING %s\n", path);
-        release();
         incache = false;
-
-        close();
-        isclosed = true;
     }
 
     bool iscached(){
         std::unique_lock<std::mutex> lock{mutex};
         return incache;
     }
+
+    void printinfo(){
+        fprintf(stderr, "%d %d %s %s %d\n", level, file_number, smallest.c_str(), largest.c_str(), keynum);
+    }
+
 public:
     virtual int open() = 0;
     virtual int close() = 0;

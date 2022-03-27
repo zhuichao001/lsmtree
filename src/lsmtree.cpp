@@ -1,14 +1,11 @@
 #include <algorithm>
 #include "lsmtree.h"
 #include "sstable.h"
+#include "clock.h"
 
 
 thread_pool_t backstage(1);
 std::string basedir;
-
-const int TIER_SST_COUNT(int level){
-    return TIER_PRI_COUNT * pow(10, level);
-}
 
 int lsmtree::open(const options *opt, const char *dirpath){
     basedir = dirpath;
@@ -17,28 +14,29 @@ int lsmtree::open(const options *opt, const char *dirpath){
     if(!exist(path)){
         mkdir(path);
     }
+    versions_.recover();
 
     wal::option walopt = {20971520, 1024};
     char logpath[64];
     sprintf(logpath, "%s/log/\0", basedir.c_str());
     wal_ = new wal::walog(walopt, logpath);
-
-    recover();
+    redolog();
     return 0;
 }
 
-int lsmtree::recover(){
-    versions_.recover();
-
+int lsmtree::redolog(){
     int startidx = versions_.apply_logidx()+1; 
     int endidx = -1;
     wal_->truncatefront(startidx);
     wal_->lastindex(endidx);
     for(int idx=startidx; idx<=endidx; ++idx){
         std::string row;
-        wal_->read(idx, row);
+        if(wal_->read(idx, row)<0){
+            fprintf(stderr, "error: failed when redo log, idx=%d\n", idx);
+            return -1;
+        }
         int seqno=0;
-        char kv[2][523];
+        char kv[2][512];
         int flag=0;
         memset(kv, 0, sizeof(kv));
         sscanf(row.c_str(), "%d %s %s %d", &seqno, kv[0], kv[1], &flag);
@@ -120,7 +118,7 @@ void lsmtree::schedule_compaction(){
     });
 }
 
-int lsmtree::sweep_space(){
+int lsmtree::make_space(){
     if(mutab_->size() < MAX_MEMTAB_SIZE){
         return 0;
     }
@@ -195,7 +193,7 @@ int lsmtree::minor_compact(){
 }
 
 int lsmtree::major_compact(compaction* c){
-     assert(c->size()>0);
+    assert(c->size()>0);
 
     versionedit edit;
     if(c->size()==1){
@@ -205,10 +203,12 @@ int lsmtree::major_compact(compaction* c){
     } else {
         std::vector<basetable::iterator> vec;
         for(basetable *t : c->inputs()){
-            versions_.cachein(t);
+            fprintf(stderr, "cache sst-%d for major_compact\n", t->file_number);
+            versions_.cachein(t, true);
             edit.remove(t);
             vec.push_back(t->begin());
-            fprintf(stderr, "   ...major compact from level:%d  sst-%d <%s, %s>\n", t->level, t->file_number, t->smallest.c_str(), t->largest.c_str());
+            fprintf(stderr, "   ...major compact from level:%d  sst-%d <%s, %s>\n", 
+                t->level, t->file_number, t->smallest.c_str(), t->largest.c_str());
         }
         if(vec.empty()){
             return 0;
@@ -226,9 +226,6 @@ int lsmtree::major_compact(compaction* c){
             basetable::iterator it = vec.front();
             pop_heap(vec.begin(), vec.end(), basetable::compare_gt);
             vec.pop_back(); //remove iterator
-
-            basetable *t = it.belong();
-            versions_.cachein(t);
 
             kvtuple e;
             it.parse(e);
@@ -257,7 +254,7 @@ int lsmtree::major_compact(compaction* c){
         fprintf(stderr, "    >>>major compact into level:%d sst-%d range:[%s, %s]\n", destlevel, sst->file_number, sst->smallest.c_str(), sst->largest.c_str());
     }
 
-    version * neo = versions_.apply(&edit);
+    version *neo = versions_.apply(&edit);
     {
         std::unique_lock<std::mutex> lock{mutex_};
         versions_.appoint(neo);
@@ -271,7 +268,7 @@ int lsmtree::major_compact(compaction* c){
 int lsmtree::write(const woptions &opt, const wbatch &bat){
     int seqno = versions_.add_sequence(bat.size());
     bat.scan([this, seqno](const char *key, const char *val, const int flag)->int{
-        if(sweep_space()==1){
+        if(make_space()==1){
             schedule_compaction();
         }
 

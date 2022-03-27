@@ -1,11 +1,13 @@
 #include "version.h"
 #include "clock.h"
 
-
-const int PATH_LEN = 64;
-
 inline uint64_t max_level_size(int ln){
     return (ln==0)? 8*SST_LIMIT : uint64_t(pow(10,ln))*SST_LIMIT;
+}
+
+inline int TIER_SST_COUNT(int level){
+    static const int PRISST_COUNT = 8;
+    return PRISST_COUNT * pow(16, level);
 }
 
 version::version(versionset *vs):
@@ -36,11 +38,13 @@ int version::get(const uint64_t seqno, const std::string &key, std::string &val)
             continue;
         }
 
-        vset->cachein(t);
-
+        if(!t->iscached()){
+            vset->cachein(t, false);
+        }
         kvtuple tmp;
         int err = t->get(seqno, key, tmp);
         if(err<0){
+            fprintf(stderr, "err:%d, try find %s in sst-%d\n", err, key.c_str(), t->file_number);
             continue;
         }
 
@@ -64,18 +68,22 @@ int version::get(const uint64_t seqno, const std::string &key, std::string &val)
         if(it==ssts[i].end()){
             continue;
         }
+
         basetable *t = *it;
         if(key<t->smallest || key>t->largest){
             continue;
         }
-        vset->cachein(t);
 
+        if(!t->iscached()){
+            vset->cachein(t, false);
+        }
         int err = t->get(seqno, key, val);
         if(err==0 || err==ERROR_KEY_DELETED){
             return 0;
-        }else{
+        }else{ //miss seek
+            fprintf(stderr, "missed seek %s in sst-%d\n", key.c_str(), t->file_number);
             t->allowed_seeks -= 1;
-            if(t->allowed_seeks==0){
+            if(tricky_sst && t->allowed_seeks==0){
                 tricky_sst = t;
             }
         }
@@ -103,18 +111,22 @@ void version::calculate(){
 versionset::versionset():
     next_fnumber_(10000),
     last_sequence_(1),
-    verhead_(this) {
+    apply_logidx_(0),
+    verhead_(this),
+    current_(nullptr){
     verhead_.prev = &verhead_;
     verhead_.next = &verhead_;
     this->appoint(new version(this));
 }
 
 void versionset::appoint(version *ver){
+    version *old = current_;
     ver->ref();
-    if(current_!=nullptr){
-        current_->unref();
-    }
+    //TODO: memory barrier
     current_ = ver;
+    if(old!=nullptr){
+        old->unref();
+    }
 
     //append current_ to tail
     ver->next = &verhead_;
@@ -195,22 +207,18 @@ version *versionset::apply(versionedit *edit){
 }
 
 int versionset::persist(const std::vector<basetable*> ssts[MAX_LEVELS]){ 
-    char metapath[PATH_LEN];
-    sprintf(metapath, "%s/meta/\0", basedir.c_str());
-    if(!exist(metapath)){
-        mkdir(metapath);
-    }
-
     char manifest_path[PATH_LEN];
-    sprintf(manifest_path, "%s/meta/MANIFEST-%ld\0", basedir.c_str(), get_time_usec());
+    memset(manifest_path, 0, sizeof(manifest_path));
+    sprintf(manifest_path, "%s/MANIFEST-%ld\0", metapath_, get_time_usec());
     {
         int fd = open_create(manifest_path);
         fprintf(stderr, "persist MANIFEST: %s\n", manifest_path);
         for(int level=0; level<MAX_LEVELS; ++level) {
             for(int j=0; j<ssts[level].size(); ++j){
                 basetable *t = ssts[level][j];
-                char line[256];
-                sprintf(line, "%d %d %s %s %d\n", level, t->file_number, t->smallest.c_str(), t->largest.c_str(), t->key_num);
+                char line[128+t->smallest.size()+t->largest.size()];
+                memset(line, 0, sizeof(line));
+                sprintf(line, "%d %d %s %s %d\n\0", level, t->file_number, t->smallest.c_str(), t->largest.c_str(), t->keynum);
                 write_file(fd, line, strlen(line));
             }
         }
@@ -218,12 +226,15 @@ int versionset::persist(const std::vector<basetable*> ssts[MAX_LEVELS]){
     }
 
     char temporary[PATH_LEN];
+    memset(temporary, 0, sizeof(temporary));
     sprintf(temporary, "%s/.temporary\0", basedir.c_str());
 
     char data[256];
+    memset(data, 0, sizeof(data));
     sprintf(data, "%d %d %s\0", apply_logidx_, last_sequence_, manifest_path);
     write_file(temporary, data, strlen(data)); 
     char current[PATH_LEN];
+    memset(current, 0, sizeof(current));
     sprintf(current, "%s/CURRENT\0", basedir.c_str());
     fprintf(stderr, "MOVE MANIFEST from %s to %s\n", temporary, current);
     if(rename_file(temporary, current)<0){
@@ -233,20 +244,19 @@ int versionset::persist(const std::vector<basetable*> ssts[MAX_LEVELS]){
 }
 
 int versionset::recover(){
-    char metapath[PATH_LEN];
-    sprintf(metapath, "%s/meta/\0", basedir.c_str());
-    if(!exist(metapath)){
-        mkdir(metapath);
-        return 0;
+    sprintf(metapath_, "%s/meta/\0", basedir.c_str());
+    if(!exist(metapath_)){
+        mkdir(metapath_);
+        return -1;
     }
 
-    char current[PATH_LEN];
-    sprintf(current, "%s/CURRENT\0", basedir.c_str());
+    char curpath[PATH_LEN];
+    sprintf(curpath, "%s/CURRENT\0", basedir.c_str());
+
     char manifest_path[PATH_LEN];
     memset(manifest_path, 0, sizeof(manifest_path));
-
     std::string data;
-    if(read_file(current, data)<0){
+    if(read_file(curpath, data)<0){
         return -1;
     }
     sscanf(data.c_str(), "%d %d %s\0", &apply_logidx_, &last_sequence_, manifest_path);

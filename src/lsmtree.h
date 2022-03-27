@@ -22,9 +22,10 @@
 
 typedef std::pair<std::string, std::string> kvpair;
 
-const int TIER_PRI_COUNT = 8;
-const int TIER_SST_COUNT(int level);
 const int MAX_COMPACT_LEVELS = 2; //everytime compact 2 levels at most
+const int MAX_IMMUTAB_SIZE = 8;
+const int MAX_FLUSH_SIZE = 4;
+const int MIN_FLUSH_SIZE = 1;
 
 class lsmtree{
     int logidx_;
@@ -42,9 +43,9 @@ class lsmtree{
     int minor_compact();
     int major_compact(compaction* c);
     int select_overlap(const int ln, std::vector<basetable*> &from, std::vector<basetable*> &to);
-    int sweep_space();
+    int make_space();
     void schedule_compaction();
-    int recover();
+    int redolog();
 public:
     lsmtree():
         logidx_(0),
