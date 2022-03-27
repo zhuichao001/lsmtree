@@ -35,15 +35,15 @@ int version::get(const uint64_t seqno, const std::string &key, std::string &val)
             continue;
         }
 
-	fprintf(stderr, "try find %s in sst-%d, codemap.size:%d\n", key.c_str(), t->file_number, t->codemap.size());
+        fprintf(stderr, "try find %s in sst-%d, codemap.size:%d\n", key.c_str(), t->file_number, t->codemap.size());
 
         kvtuple tmp;
-	if(!t->iscached()){
+        if(!t->iscached()){
             vset->cachein(t, false);
         }
         int err = t->get(seqno, key, tmp);
         if(err<0){
-		fprintf(stderr, "err:%d, try find %s in sst-%d\n", err, key.c_str(), t->file_number);
+                fprintf(stderr, "err:%d, try find %s in sst-%d\n", err, key.c_str(), t->file_number);
             continue;
         }
 
@@ -73,14 +73,14 @@ int version::get(const uint64_t seqno, const std::string &key, std::string &val)
             continue;
         }
 
-	if(!t->iscached()){
+        if(!t->iscached()){
             vset->cachein(t, false);
         }
         int err = t->get(seqno, key, val);
         if(err==0 || err==ERROR_KEY_DELETED){
             return 0;
         }else{ //miss seek
-	    fprintf(stderr, "missed seek %s in sst-%d\n", key.c_str(), t->file_number);
+            fprintf(stderr, "missed seek %s in sst-%d\n", key.c_str(), t->file_number);
             t->allowed_seeks -= 1;
             if(tricky_sst && t->allowed_seeks==0){
                 tricky_sst = t;
@@ -193,9 +193,9 @@ version *versionset::apply(versionedit *edit){
                 if(added[k]->smallest < t->smallest){
                     neo->ssts[i].push_back(added[k]);
                     added[k]->ref();
-		    if(!added[k]->iscached()){
-		        cachein(added[k], false);
-		    }
+                    if(!added[k]->iscached()){
+                        cachein(added[k], false);
+                    }
 
                     fprintf(stderr, "apply: add added sst-%d to level:%d [%s, %s]\n", 
                             added[k]->file_number, i, added[k]->smallest.c_str(), added[k]->largest.c_str());
@@ -209,9 +209,9 @@ version *versionset::apply(versionedit *edit){
         for(; k<added.size(); ++k){
             neo->ssts[i].push_back(added[k]);
             added[k]->ref();
-	    if(!added[k]->iscached()){
-	        cachein(added[k], false);
-	    }
+            if(!added[k]->iscached()){
+                cachein(added[k], false);
+            }
 
             fprintf(stderr, "apply: add added sst-%d to level:%d [%s, %s]\n", 
                     added[k]->file_number, i, added[k]->smallest.c_str(), added[k]->largest.c_str());
@@ -230,9 +230,9 @@ int versionset::persist(version *ver){
         for(int level=0; level<MAX_LEVELS; ++level) {
             for(int j=0; j<ver->ssts[level].size(); ++j){
                 basetable *t = ver->ssts[level][j];
-                char line[512];
-		memset(line, 0, sizeof(line));
-		t->printinfo();
+                char line[64+t->smallest.size()+t->largest.size()];
+                memset(line, 0, sizeof(line));
+                t->printinfo();
                 sprintf(line, "%d %d %s %s %d\n\0", level, t->file_number, t->smallest.c_str(), t->largest.c_str(), t->key_num);
                 write_file(fd, line, strlen(line));
             }
