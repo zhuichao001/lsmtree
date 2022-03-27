@@ -59,8 +59,6 @@ public:
 
     int get(const uint64_t seqno, const std::string &key, std::string &val);
 
-    void select_sst(const int level, const std::string &start, const std::string &end, std::vector<basetable*> &out);
-
     void calculate();
 
     int sst_size(int level){

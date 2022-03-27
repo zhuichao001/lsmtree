@@ -88,16 +88,6 @@ int version::get(const uint64_t seqno, const std::string &key, std::string &val)
     return -1;
 }
 
-void version::select_sst(const int level, const std::string &start, const std::string &end, std::vector<basetable*> &out){
-    for(basetable *t : ssts[level]){
-        if(!t->overlap(start, end)){
-            continue;
-        }
-        out.push_back(t);
-    }
-    return;
-}
-
 void version::calculate(){
     crownd_score = 0.0;
     crownd_level = -1;
