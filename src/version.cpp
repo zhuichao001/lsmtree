@@ -1,6 +1,7 @@
 #include "version.h"
 #include "clock.h"
 
+
 inline int TIER_SST_COUNT(int level){
     static const int PRISST_COUNT = 8;
     return PRISST_COUNT * pow(16, level);
@@ -28,20 +29,19 @@ version::~version(){
 int version::get(const uint64_t seqno, const std::string &key, std::string &val){
     kvtuple res;
     res.seqno = 0;
-
     for(int j=0; j<ssts[0].size(); ++j){
         primarysst *t = dynamic_cast<primarysst*>(ssts[0][j]);
         if(key<t->smallest || key>t->largest){
             continue;
         }
 
-        kvtuple tmp;
         if(!t->iscached()){
             vset->cachein(t, false);
         }
+        kvtuple tmp;
         int err = t->get(seqno, key, tmp);
         if(err<0){
-                fprintf(stderr, "err:%d, try find %s in sst-%d\n", err, key.c_str(), t->file_number);
+            fprintf(stderr, "err:%d, try find %s in sst-%d\n", err, key.c_str(), t->file_number);
             continue;
         }
 
@@ -230,7 +230,6 @@ int versionset::persist(version *ver){
                 basetable *t = ver->ssts[level][j];
                 char line[128+t->smallest.size()+t->largest.size()];
                 memset(line, 0, sizeof(line));
-                //t->printinfo();
                 sprintf(line, "%d %d %s %s %d\n\0", level, t->file_number, t->smallest.c_str(), t->largest.c_str(), t->keynum);
                 write_file(fd, line, strlen(line));
             }

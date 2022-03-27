@@ -25,13 +25,13 @@ public:
     Node():
         prev(nullptr),
         next(nullptr),
-    fixed(true){
+        fixed(true){
     };
 
     Node(const KT &k, const VT &v, bool pined):
         key(k),
         val(v),
-    fixed(pined){
+        fixed(pined){
         prev = nullptr; 
         next = nullptr;
     }

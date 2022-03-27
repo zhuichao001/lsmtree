@@ -134,7 +134,6 @@ int primarysst::put(const uint64_t seqno, const std::string &key, const std::str
 int primarysst::get(const uint64_t seqno, const std::string &key, kvtuple &res){
     assert(codemap.size()>0);
     const int hashcode = hash(key.c_str(), key.size());
-
     auto pr = codemap.equal_range(hashcode);
     for (auto iter = pr.first ; iter != pr.second; ++iter){
         const kvtuple &t = iter->second;
@@ -174,13 +173,13 @@ int primarysst::scan(const uint64_t seqno, std::function<int(const int, const ch
 }
 
 int primarysst::peek(int idxpos, kvtuple &record) {
-    const rowmeta meta = *(rowmeta*)(mem+idxpos);
-    if(meta.seqno==0 && meta.hashcode==0){
+    const rowmeta *meta = (rowmeta*)(mem+idxpos);
+    if(meta->seqno==0 && meta->hashcode==0){
         return -1;
     }
 
-    loadkv(mem+meta.datoffset, &record.ckey, &record.cval);
-    record.seqno = meta.seqno;
-    record.flag = meta.flag;
+    loadkv(mem+meta->datoffset, &record.ckey, &record.cval);
+    record.seqno = meta->seqno;
+    record.flag = meta->flag;
     return 0;
 }

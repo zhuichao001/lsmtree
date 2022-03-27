@@ -157,8 +157,8 @@ int sstable::put(const uint64_t seqno, const std::string &key, const std::string
 
 int sstable::scan(const uint64_t seqno, std::function<int(const int, const char*, const char*, int)> func){
     rowmeta meta;
-    for(int pos=0; pos<idxoffset; pos+=sizeof(meta)){
-        pread(fd, (void*)&meta, sizeof(meta), pos);
+    for(int pos=0; pos<idxoffset; pos+=sizeof(rowmeta)){
+        pread(fd, (void*)&meta, sizeof(rowmeta), pos);
         if(meta.seqno>seqno){
             continue;
         }
@@ -175,8 +175,8 @@ int sstable::scan(const uint64_t seqno, std::function<int(const int, const char*
 
 int sstable::peek(int idxoffset, kvtuple &record) {
     rowmeta meta;
-    if(pread(fd, &meta, sizeof(meta), idxoffset)<0){
-        fprintf(stderr, "error pread in sstable::peek, sst-%d\n", file_number);
+    if(pread(fd, &meta, sizeof(rowmeta), idxoffset)<0){
+        fprintf(stderr, "peek error, fd:%d, level:%d sst-%d\n", fd, level, file_number);
         perror("sstable::peek idxoffset");
         return -1;
     }

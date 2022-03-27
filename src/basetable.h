@@ -51,7 +51,7 @@ public:
         ref_num(0),
         isclosed(true), 
         isloaded(false),
-       	incache(false) {
+               incache(false) {
     }
 
     int remove(){
@@ -107,8 +107,8 @@ public:
         if(!isloaded){
             fprintf(stderr, "LOAD IN CACHE %s\n", path);
             load(); //cache: idxoffset, datoffset, codemap
-	}
-	incache = true;
+        }
+        incache = true;
         return true;
     }
 
@@ -117,11 +117,11 @@ public:
         if(isloaded){
             fprintf(stderr, "UNCACHEING %s\n", path);
             release();
-	}
+        }
         if(!isclosed){
             close();
-	}
-	incache = false;
+        }
+        incache = false;
     }
 
     bool iscached(){

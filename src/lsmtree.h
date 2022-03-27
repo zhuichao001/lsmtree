@@ -54,10 +54,10 @@ class lsmtree{
 
     int minor_compact(const int tabnum);
     int major_compact(compaction* c);
-    int redolog();
     int make_space();
     void schedule_flush();
     void schedule_compaction();
+    int redolog();
 public:
     lsmtree():
         logidx_(0),

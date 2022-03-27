@@ -19,7 +19,7 @@ public:
     int insert(const std::string &k, cached* v, bool fixed){
         if(lru.exist(k)){
             fprintf(stderr, "warning, ignore cache %s exist\n", k.c_str());
-	    lru.display();
+            //lru.display();
             return -1;
         }
         fprintf(stderr, "LRU put cache %s \n", k.c_str());
