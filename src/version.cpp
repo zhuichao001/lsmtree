@@ -2,8 +2,8 @@
 #include "clock.h"
 
 inline int TIER_SST_COUNT(int level){
-    static const int PRISST_COUNT = 10;
-    return PRISST_COUNT * pow(10, level);
+    static const int PRISST_COUNT = 8;
+    return PRISST_COUNT * pow(16, level);
 }
 
 version::version(versionset *vs):
@@ -230,9 +230,9 @@ int versionset::persist(version *ver){
         for(int level=0; level<MAX_LEVELS; ++level) {
             for(int j=0; j<ver->ssts[level].size(); ++j){
                 basetable *t = ver->ssts[level][j];
-                char line[64+t->smallest.size()+t->largest.size()];
+                char line[128+t->smallest.size()+t->largest.size()];
                 memset(line, 0, sizeof(line));
-                t->printinfo();
+                //t->printinfo();
                 sprintf(line, "%d %d %s %s %d\n\0", level, t->file_number, t->smallest.c_str(), t->largest.c_str(), t->key_num);
                 write_file(fd, line, strlen(line));
             }
