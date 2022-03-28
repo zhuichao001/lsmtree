@@ -36,7 +36,9 @@ class lsmtree{
     std::mutex mutex_;
     std::condition_variable persist_cv_; //sync wait immutab become primarysst
 
-    std::atomic<bool> compacting;
+    std::atomic<bool> compacting_;
+    thread_pool_t backstage_;
+
     versionset versions_;
     snapshotlist snapshots_;
 
@@ -52,7 +54,8 @@ public:
         wal_(nullptr),
         mutab_(nullptr),
         immutab_(nullptr),
-        compacting(false){
+        compacting_(false),
+        backstage_(1){
         mutab_ = new memtable;
         mutab_->ref();
     }
@@ -61,11 +64,9 @@ public:
         if(mutab_){
             mutab_->unref();
         }
-
         if(immutab_){
             immutab_->unref();
         }
-
     }
 
     int open(const options *opt, const char *basedir);

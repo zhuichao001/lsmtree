@@ -4,7 +4,6 @@
 #include "clock.h"
 
 
-thread_pool_t backstage(1);
 std::string basedir;
 
 int lsmtree::open(const options *opt, const char *dirpath){
@@ -96,12 +95,12 @@ int lsmtree::get(const roptions &opt, const std::string &key, std::string &val){
 }
 
 void lsmtree::schedule_compaction(){
-    if(compacting){
+    if(compacting_){
         return;
     }
 
-    compacting = true;
-    backstage.post([this]{
+    compacting_ = true;
+    backstage_.post([this]{
         if(immutab_!=nullptr){
             this->minor_compact();
         }
@@ -111,7 +110,7 @@ void lsmtree::schedule_compaction(){
                 this->major_compact(c);
             }
         }
-        compacting = false;
+        compacting_ = false;
         schedule_compaction();
     });
 }
