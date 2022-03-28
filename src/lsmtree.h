@@ -34,7 +34,7 @@ class lsmtree{
     memtable *mutab_;
     memtable *immutab_;
     std::mutex mutex_;
-    std::condition_variable solidify_; //sync wait immutab become primarysst
+    std::condition_variable persist_cv_; //sync wait immutab become primarysst
 
     std::atomic<bool> compacting;
     versionset versions_;

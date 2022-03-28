@@ -72,7 +72,7 @@ int sstable::load(){
         if(meta.hashcode==0 && meta.datoffset==0){
             break;
         }
-	++keynum;
+        ++keynum;
         codemap.insert(std::make_pair(meta.hashcode, meta));
         datoffset = meta.datoffset;
     }
@@ -149,8 +149,7 @@ int sstable::put(const uint64_t seqno, const std::string &key, const std::string
     isloaded = true;
 
     ++keynum;
-    const int rowlen = sizeof(int)+keylen+sizeof(int)+vallen + sizeof(meta);
-    file_size += rowlen;
+    file_size += datlen + sizeof(rowmeta);
     uplimit(key);
     return 0;
 }

@@ -9,16 +9,20 @@
 #include "tablecache.h"
 #include "types.h"
 
+const int PATH_LEN = 64;
 extern std::string basedir;
 
 const int MAX_LEVELS = 8;
 const int SST_LIMIT = 1<<19; //default sst size:512KB
 const int MAX_ALLOWED_SEEKS = SST_LIMIT / 64;  //max seeks before compaction
 
+const int MAX_KEYLEN = 1024;
+const int MAX_VALLEN = 1<<16; //64KB
+
 class basetable: public cached {
 public:
     int level;
-    char path[64];
+    char path[PATH_LEN];
 
     int idxoffset;
     int datoffset;

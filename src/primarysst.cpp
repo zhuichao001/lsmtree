@@ -49,9 +49,9 @@ int primarysst::open(){
     }
     mem = (char*)::mmap(nullptr, SST_LIMIT, PROT_READ|PROT_WRITE, MAP_SHARED, fd, 0);
     if(mem == MAP_FAILED){
-       fprintf(stderr, "mmap error: %s\n", strerror(errno));
-       ::close(fd);
-       return -1;
+        fprintf(stderr, "mmap error: %s\n", strerror(errno));
+        ::close(fd);
+        return -1;
    }
 
    ::close(fd);

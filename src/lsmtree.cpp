@@ -9,7 +9,7 @@ std::string basedir;
 
 int lsmtree::open(const options *opt, const char *dirpath){
     basedir = dirpath;
-    char path[64];
+    char path[PATH_LEN];
     sprintf(path, "%s/sst/\0", dirpath);
     if(!exist(path)){
         mkdir(path);
@@ -17,7 +17,7 @@ int lsmtree::open(const options *opt, const char *dirpath){
     versions_.recover();
 
     wal::option walopt = {20971520, 1024};
-    char logpath[64];
+    char logpath[PATH_LEN];
     sprintf(logpath, "%s/log/\0", basedir.c_str());
     wal_ = new wal::walog(walopt, logpath);
     redolog();
@@ -102,18 +102,16 @@ void lsmtree::schedule_compaction(){
 
     compacting = true;
     backstage.post([this]{
-        {
-            if(immutab_!=nullptr){
-                this->minor_compact();
-            }
-            if(versions_.need_compact()){
-                compaction *c = versions_.plan_compact(versions_.current());
-                if(c!=nullptr){ //do nothing
-                    this->major_compact(c);
-                }
-            }
-            compacting = false;
+        if(immutab_!=nullptr){
+            this->minor_compact();
         }
+        if(versions_.need_compact()){
+            compaction *c = versions_.plan_compact(versions_.current());
+            if(c!=nullptr){ //do nothing
+                this->major_compact(c);
+            }
+        }
+        compacting = false;
         schedule_compaction();
     });
 }
@@ -126,7 +124,7 @@ int lsmtree::make_space(){
     std::unique_lock<std::mutex> lock{mutex_};
     if (immutab_!=nullptr) {
         fprintf(stderr, "level-0 wait\n");
-        solidify_.wait(lock);
+        persist_cv_.wait(lock);
         return 0;
     } else {
         immutab_ = mutab_;
@@ -185,7 +183,7 @@ int lsmtree::minor_compact(){
         versions_.appoint(neo);
         immutab_->unref();
         immutab_ = nullptr;
-        solidify_.notify_all();
+        persist_cv_.notify_all();
     }
 
     versions_.current()->calculate();
@@ -241,7 +239,8 @@ int lsmtree::major_compact(compaction* c){
             }
 
             if(sst->put(e.seqno, std::string(e.ckey), std::string(e.cval), e.flag)==ERROR_SPACE_NOT_ENOUGH){
-                fprintf(stderr, "    >>>major compact into level:%d sst-%d range:[%s, %s]\n", destlevel, sst->file_number, sst->smallest.c_str(), sst->largest.c_str());
+                fprintf(stderr, "    >>>major compact into level:%d sst-%d range:[%s, %s]\n", 
+                        destlevel, sst->file_number, sst->smallest.c_str(), sst->largest.c_str());
 
                 sst = new sstable(destlevel, versions_.next_fnumber());
                 sst->open();
@@ -251,7 +250,8 @@ int lsmtree::major_compact(compaction* c){
             }
             lastkey = e.ckey;
         }
-        fprintf(stderr, "    >>>major compact into level:%d sst-%d range:[%s, %s]\n", destlevel, sst->file_number, sst->smallest.c_str(), sst->largest.c_str());
+        fprintf(stderr, "    >>>major compact into level:%d sst-%d range:[%s, %s]\n", 
+                destlevel, sst->file_number, sst->smallest.c_str(), sst->largest.c_str());
     }
 
     version *neo = versions_.apply(&edit);
@@ -272,7 +272,7 @@ int lsmtree::write(const woptions &opt, const wbatch &bat){
             schedule_compaction();
         }
 
-        char log[1024];
+        char log[32+MAX_KEYLEN+MAX_VALLEN];
         if(flag==FLAG_VAL){
             sprintf(log, "%d %s %s %d\n\0", seqno, key, val, flag);
             wal_->write(++logidx_, log);
