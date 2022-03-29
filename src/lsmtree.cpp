@@ -36,15 +36,15 @@ int lsmtree::redolog(){
             fprintf(stderr, "error: failed when redo log, idx=%d\n", idx);
             return -1;
         }
-        int seqno=0;
-        char kv[2][512];
-        int flag=0;
-        memset(kv, 0, sizeof(kv));
-        sscanf(row.c_str(), "%d %s %s %d", &seqno, kv[0], kv[1], &flag);
+        int seqno = 0;
+        char k[MAX_KEYLEN] = {};
+        char v[MAX_VALLEN] = {};
+        int flag = 0;
+        sscanf(row.c_str(), "%d %s %s %d", &seqno, k, v, &flag);
         if(flag==FLAG_VAL){
-            mutab_->put(idx, seqno, kv[0], kv[1]);
+            mutab_->put(idx, seqno, k, v);
         }else{
-            mutab_->del(idx, seqno, kv[0]);
+            mutab_->del(idx, seqno, k);
         }
     }
     return 0;
@@ -272,8 +272,8 @@ int lsmtree::minor_compact(const int tabnum){
         std::unique_lock<std::mutex> lock{sstmutex_};
         version *neo = versions_.apply(&edit); 
         versions_.appoint(neo);
+        versions_.persist(versions_.current());
     }
-    versions_.persist(versions_.current());
     versions_.apply_logidx(persist_logidx);
 
     {
@@ -356,9 +356,9 @@ int lsmtree::major_compact(compaction* c){
         std::unique_lock<std::mutex> lock{sstmutex_};
         version *neo = versions_.apply(&edit);
         versions_.appoint(neo);
+        versions_.persist(versions_.current());
     }
 
-    versions_.persist(versions_.current());
     fprintf(stderr, "MAJOR COMPACT DONE!!!\n");
     return 0;
 }

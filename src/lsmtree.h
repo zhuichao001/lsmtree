@@ -39,7 +39,6 @@ class lsmtree{
     std::mutex mutex_;
 
     thread_pool_t backstage_;
-
     std::thread *flusher_;
     sem_t sem_free_;
     sem_t sem_occu_;

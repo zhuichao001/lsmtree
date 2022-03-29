@@ -105,7 +105,6 @@ public:
 
 class versionset {
     std::string dbpath_;
-    static const int PATH_LEN = 64;
     char metapath_[PATH_LEN];
     const options *opt_;
 
