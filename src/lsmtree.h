@@ -69,7 +69,7 @@ public:
         }
     }
 
-    int open(const options *opt, const char *basedir);
+    int open(const options &opt, const char *basedir);
     int del(const woptions &opt, const std::string &key);
     int get(const roptions &opt, const std::string &key, std::string &val);
     int put(const woptions &opt, const std::string &key, const std::string &val);

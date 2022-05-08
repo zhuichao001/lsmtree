@@ -6,7 +6,7 @@
 
 std::string basedir;
 
-int lsmtree::open(const options *opt, const char *dirpath){
+int lsmtree::open(const options &opt, const char *dirpath){
     basedir = dirpath;
     char path[PATH_LEN];
     sprintf(path, "%s/sst/\0", dirpath);
