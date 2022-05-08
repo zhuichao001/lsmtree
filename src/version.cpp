@@ -208,36 +208,31 @@ version *versionset::apply(versionedit *edit){
 
 int versionset::persist(const std::vector<basetable*> ssts[MAX_LEVELS]){ 
     char manifest_path[PATH_LEN];
-    //memset(manifest_path, 0, sizeof(manifest_path));
     sprintf(manifest_path, "%s/MANIFEST-%ld\0", metapath_, get_time_usec());
     {
-        int fd = open_create(manifest_path);
+        int fd = fio::fopen(manifest_path, fio::CREATE);
         fprintf(stderr, "persist MANIFEST: %s\n", manifest_path);
         for(int level=0; level<MAX_LEVELS; ++level) {
             for(int j=0; j<ssts[level].size(); ++j){
                 basetable *t = ssts[level][j];
                 char line[128+t->smallest.size()+t->largest.size()];
-                //memset(line, 0, sizeof(line));
                 sprintf(line, "%d %d %s %s %d\n\0", level, t->file_number, t->smallest.c_str(), t->largest.c_str(), t->keynum);
-                write_file(fd, line, strlen(line));
+                fio::fwrite(fd, line, strlen(line));
             }
         }
-        ::close(fd);
+        fio::fclose(fd);
     }
 
     char temporary[PATH_LEN];
-    //memset(temporary, 0, sizeof(temporary));
     sprintf(temporary, "%s/.temporary\0", basedir.c_str());
 
     char data[256];
-    //memset(data, 0, sizeof(data));
     sprintf(data, "%d %d %s\0", apply_logidx_, last_sequence_, manifest_path);
-    write_file(temporary, data, strlen(data)); 
+    fio::fwrite(temporary, data, strlen(data)); 
     char current[PATH_LEN];
-    //memset(current, 0, sizeof(current));
     sprintf(current, "%s/CURRENT\0", basedir.c_str());
     fprintf(stderr, "MOVE MANIFEST from %s to %s\n", temporary, current);
-    if(rename_file(temporary, current)<0){
+    if(fio::frename(temporary, current)<0){
         fprintf(stderr, "rename file failed\n");
     }
     return 0;
@@ -245,8 +240,8 @@ int versionset::persist(const std::vector<basetable*> ssts[MAX_LEVELS]){
 
 int versionset::recover(){
     sprintf(metapath_, "%s/meta/\0", basedir.c_str());
-    if(!exist(metapath_)){
-        mkdir(metapath_);
+    if(!fio::fexist(metapath_)){
+        fio::mkdir(metapath_);
         return -1;
     }
 
@@ -254,9 +249,8 @@ int versionset::recover(){
     sprintf(curpath, "%s/CURRENT\0", basedir.c_str());
 
     char manifest_path[PATH_LEN];
-    //memset(manifest_path, 0, sizeof(manifest_path));
     std::string data;
-    if(read_file(curpath, data)<0){
+    if(fio::fread(curpath, data)<0){
         return -1;
     }
     sscanf(data.c_str(), "%d %d %s\0", &apply_logidx_, &last_sequence_, manifest_path);
@@ -264,7 +258,7 @@ int versionset::recover(){
 
     versionedit edit;
     data.clear();
-    if(read_file(manifest_path, data)<0){
+    if(fio::fread(manifest_path, data)<0){
         fprintf(stderr, "read manifest error\n");
         return -1;
     }
@@ -274,7 +268,6 @@ int versionset::recover(){
     while(token!=nullptr){
         int level=0, fnumber=0, keynum=0;
         char limit[2][64];
-        //memset(limit, 0, sizeof(limit));
         sscanf(token, "%d %d %s %s %s %d", &level, &fnumber, limit[0], limit[1], &keynum);
         fprintf(stderr, "RECOVER sstable level-%d sst-%d <%s,%s>\n", level, fnumber, limit[0], limit[1]);
 

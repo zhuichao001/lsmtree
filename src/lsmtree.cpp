@@ -10,8 +10,8 @@ int lsmtree::open(const options *opt, const char *dirpath){
     basedir = dirpath;
     char path[PATH_LEN];
     sprintf(path, "%s/sst/\0", dirpath);
-    if(!exist(path)){
-        mkdir(path);
+    if(!fio::fexist(path)){
+        fio::mkdir(path);
     }
     versions_.recover();
 
