@@ -212,13 +212,13 @@ int versionset::persist(version *ver){
     char manifest_path[PATH_LEN];
     sprintf(manifest_path, "%s/MANIFEST-%ld\0", metapath_, get_time_usec());
     {
-        int fd = open_create(manifest_path);
+        int fd = fio::fopen(manifest_path, fio::CREATE);
         fprintf(stderr, "persist MANIFEST: %s\n", manifest_path);
         for(int level=0; level<MAX_LEVELS; ++level) {
             for(basetable *t : ver->ssts[level]){
                 char line[128+t->smallest.size()+t->largest.size()] = {};
                 sprintf(line, "%d %d %s %s %d\n\0", level, t->file_number, t->smallest.c_str(), t->largest.c_str(), t->keynum);
-                write_file(fd, line, strlen(line));
+                fio::fwrite(fd, line, strlen(line));
             }
         }
         ::close(fd);
@@ -229,12 +229,12 @@ int versionset::persist(version *ver){
 
     char data[256];
     sprintf(data, "%d %d %s\0", apply_logidx_, last_sequence_, manifest_path);
-    write_file(temporary, data, strlen(data)); 
+    fio::fwrite(temporary, data, strlen(data)); 
 
     char curpath[PATH_LEN];
     sprintf(curpath, "%s/CURRENT\0", basedir.c_str());
     fprintf(stderr, "MOVE MANIFEST from %s to %s\n", temporary, curpath);
-    if(rename_file(temporary, curpath)<0){
+    if(fio::frename(temporary, curpath)<0){
         fprintf(stderr, "rename file failed\n");
     }
     return 0;
@@ -242,8 +242,8 @@ int versionset::persist(version *ver){
 
 int versionset::recover(){
     sprintf(metapath_, "%s/meta/\0", basedir.c_str());
-    if(!exist(metapath_)){
-        mkdir(metapath_);
+    if(!fio::fexist(metapath_)){
+        fio::mkdir(metapath_);
         return -1;
     }
 
@@ -252,7 +252,7 @@ int versionset::recover(){
 
     char manifest_path[PATH_LEN];
     std::string data;
-    if(read_file(curpath, data)<0){
+    if(fio::fread(curpath, data)<0){
         return -1;
     }
     sscanf(data.c_str(), "%d %d %s\0", &apply_logidx_, &last_sequence_, manifest_path);
@@ -260,7 +260,7 @@ int versionset::recover(){
 
     versionedit edit;
     data.clear();
-    if(read_file(manifest_path, data)<0){
+    if(fio::fread(manifest_path, data)<0){
         fprintf(stderr, "read manifest error\n");
         return -1;
     }

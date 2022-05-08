@@ -7,11 +7,11 @@ all:
 		../src/lsmtree.cpp \
 		../src/compaction.cpp \
 		../src/version.cpp \
-		../../naughty/file/fio.cpp \
+		../../naughty/fio/fio.cpp \
 		./test_default.cpp \
 		-lpthread \
 		-std=c++14 \
-		-I../../naughty/file \
+		-I../../naughty/fio \
 		-I../../wal \
 		-I../src
 kvtuple:

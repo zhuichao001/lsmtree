@@ -28,7 +28,7 @@ primarysst::~primarysst(){
 
 int primarysst::open(){
     int fd= -1;
-    if(!exist(path)){
+    if(!fio::fexist(path)){
         fd = ::open(path, O_RDWR | O_CREAT , 0664);
         if(fd<0) {
             fprintf(stderr, "open file %s error: %s\n", path, strerror(errno));
