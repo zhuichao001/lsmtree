@@ -1,5 +1,4 @@
-#ifndef __H_SKIP_LIST_H__
-#define __H_SKIP_LIST_H__
+#pragma once
 
 #include <stddef.h>
 #include <stdlib.h>
@@ -187,4 +186,3 @@ public:
 
 };
 
-#endif
