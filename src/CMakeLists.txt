@@ -22,6 +22,11 @@ set(CXX_FLAGS
  )
 
 include_directories(../../naughty/fio)
+add_subdirectory(../../../zhuichao001/naughty/fio fio_lib_dir)
+
 include_directories(../../wal)
+
 aux_source_directory(. DIR_LIB_LSMTREE_SRCS)
 add_library(lsmtree STATIC ${DIR_LIB_LSMTREE_SRCS})
+
+target_link_libraries(lsmtree PUBLIC fio)

@@ -11,3 +11,6 @@ data
 run
 run_test_*
 out
+
+# cmake build
+build
