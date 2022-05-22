@@ -22,7 +22,7 @@ set(CXX_FLAGS
  )
 
 include_directories(../../naughty/fio)
-add_subdirectory(../../../zhuichao001/naughty/fio fio_lib_dir)
+#add_subdirectory(../../../zhuichao001/naughty/fio fio_lib_dir)
 
 include_directories(../../wal)
 
